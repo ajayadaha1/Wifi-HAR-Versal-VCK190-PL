@@ -1,0 +1,29 @@
+
+mainmenu "PetaLinux System Configuration"
+config SUBSYSTEM_TYPE_LINUX
+        bool
+        default y
+        select SYSTEM_VERSAL
+
+config SYSTEM_VERSAL
+        bool "VERSAL Configuration"
+        help
+          VERSAL Configuration for the project.
+          All these config options will be in /group/bcapps/ajayad/master_thesis_rebirth/work/petalinux/petalinux/project-spec/configs/config
+
+config SUBSYSTEM_VARIANT_VERSALAI-CORE
+        bool
+        default y
+        help
+
+config SUBSYSTEM_SDT_FLOW
+        bool
+        default y
+        help
+
+config SUBSYSTEM_DISTRO_PETALINUX
+        bool
+        default y
+        help
+
+source /group/bcapps/ajayad/master_thesis_rebirth/work/petalinux/petalinux/project-spec/configs/configs/Kconfig.main

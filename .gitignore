@@ -1,0 +1,51 @@
+# Build / tool outputs — keep the repo to design sources only.
+# Vivado
+*.jou
+*.log
+*.str
+*.debug
+*.backup*
+.Xil/
+**/*.cache/
+**/*.hw/
+**/*.runs/
+**/*.gen/
+**/*.sim/
+**/*.ip_user_files/
+Hardware/*_hw/
+
+# Vitis / v++ / AIE
+_x/
+_x*/
+Work/
+Work_hw*/
+package/
+package_*/
+sd_stage*/
+*.xsa
+*.xclbin
+*.pdi
+*.xo
+*.o
+*.ltx
+.ipcache/
+
+# Host binaries (cross-compiled)
+aie/host/host
+aie/host/host_diag
+aie/host/host_fix
+aie/host/host_3br
+
+# PetaLinux build outputs
+images/
+build/
+tmp/
+*.cpio.gz*
+*.ext4
+*.img
+BOOT*.BIN
+Image
+
+# misc
+*.pyc
+__pycache__/

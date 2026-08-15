@@ -1,0 +1,34 @@
+menu "user packages " 
+config aie-notebooks  
+	 bool "aie-notebooks"
+	 help
+	
+config aie-oob  
+	 bool "aie-oob"
+	 help
+	
+config gpio-demo  
+	 bool "gpio-demo"
+	 help
+	
+config openamp-demo-notebooks  
+	 bool "openamp-demo-notebooks"
+	 help
+	
+config packagegroup-xilinx-jupyter  
+	 bool "packagegroup-xilinx-jupyter"
+	 help
+	
+config peekpoke  
+	 bool "peekpoke"
+	 help
+	
+config pm-notebooks  
+	 bool "pm-notebooks"
+	 help
+	
+config python3-ipywidgets  
+	 bool "python3-ipywidgets"
+	 help
+	
+endmenu

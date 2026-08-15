@@ -1,0 +1,11 @@
+#Note: Mention Each package in individual line
+#These packages will get added into rootfs menu entry
+
+CONFIG_gpio-demo
+CONFIG_peekpoke
+CONFIG_packagegroup-xilinx-jupyter
+CONFIG_pm-notebooks
+CONFIG_python3-ipywidgets
+CONFIG_openamp-demo-notebooks
+CONFIG_aie-oob
+CONFIG_aie-notebooks

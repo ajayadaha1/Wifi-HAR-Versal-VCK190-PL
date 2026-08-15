@@ -1,0 +1,288 @@
+CIPS_0_pspmc_0_psv_adma_0:
+- psv_adma
+- zdma
+CIPS_0_pspmc_0_psv_adma_1:
+- psv_adma
+- zdma
+CIPS_0_pspmc_0_psv_adma_2:
+- psv_adma
+- zdma
+CIPS_0_pspmc_0_psv_adma_3:
+- psv_adma
+- zdma
+CIPS_0_pspmc_0_psv_adma_4:
+- psv_adma
+- zdma
+CIPS_0_pspmc_0_psv_adma_5:
+- psv_adma
+- zdma
+CIPS_0_pspmc_0_psv_adma_6:
+- psv_adma
+- zdma
+CIPS_0_pspmc_0_psv_adma_7:
+- psv_adma
+- zdma
+CIPS_0_pspmc_0_psv_canfd_1:
+- psv_canfd
+- canfd
+CIPS_0_pspmc_0_psv_crf_0:
+- psv_crf
+- None
+CIPS_0_pspmc_0_psv_crl_0:
+- psv_crl
+- None
+CIPS_0_pspmc_0_psv_crp_0:
+- psv_crp
+- None
+CIPS_0_pspmc_0_psv_ethernet_0:
+- psv_ethernet
+- emacps
+CIPS_0_pspmc_0_psv_ethernet_1:
+- psv_ethernet
+- emacps
+CIPS_0_pspmc_0_psv_fpd_afi_0:
+- psv_fpd_afi
+- None
+CIPS_0_pspmc_0_psv_fpd_afi_2:
+- psv_fpd_afi
+- None
+CIPS_0_pspmc_0_psv_fpd_cci_0:
+- psv_fpd_cci
+- None
+CIPS_0_pspmc_0_psv_fpd_gpv_0:
+- psv_fpd_gpv
+- None
+CIPS_0_pspmc_0_psv_fpd_maincci_0:
+- psv_fpd_maincci
+- None
+CIPS_0_pspmc_0_psv_fpd_slave_xmpu_0:
+- psv_fpd_slave_xmpu
+- None
+CIPS_0_pspmc_0_psv_fpd_slcr_0:
+- psv_fpd_slcr
+- None
+CIPS_0_pspmc_0_psv_fpd_slcr_secure_0:
+- psv_fpd_slcr_secure
+- None
+CIPS_0_pspmc_0_psv_fpd_smmu_0:
+- psv_fpd_smmu
+- None
+CIPS_0_pspmc_0_psv_fpd_smmutcu_0:
+- psv_fpd_smmutcu
+- None
+CIPS_0_pspmc_0_psv_i2c_0:
+- psv_i2c
+- iicps
+CIPS_0_pspmc_0_psv_i2c_1:
+- psv_i2c
+- iicps
+CIPS_0_pspmc_0_psv_ipi_psm:
+- psv_ipi
+- ipipsu
+CIPS_0_pspmc_0_psv_lpd_afi_0:
+- psv_lpd_afi
+- None
+CIPS_0_pspmc_0_psv_lpd_iou_secure_slcr_0:
+- psv_lpd_iou_secure_slcr
+- None
+CIPS_0_pspmc_0_psv_lpd_iou_slcr_0:
+- psv_lpd_iou_slcr
+- None
+CIPS_0_pspmc_0_psv_lpd_slcr_0:
+- psv_lpd_slcr
+- None
+CIPS_0_pspmc_0_psv_lpd_slcr_secure_0:
+- psv_lpd_slcr_secure
+- None
+CIPS_0_pspmc_0_psv_lpd_xppu_0:
+- psv_lpd_xppu
+- None
+CIPS_0_pspmc_0_psv_ocm_ctrl:
+- psv_ocm
+- None
+CIPS_0_pspmc_0_psv_ocm_xmpu_0:
+- psv_ocm_xmpu
+- None
+CIPS_0_pspmc_0_psv_pmc_aes:
+- psv_pmc_aes
+- None
+CIPS_0_pspmc_0_psv_pmc_analog_0:
+- psv_pmc_analog
+- None
+CIPS_0_pspmc_0_psv_pmc_bbram_ctrl:
+- psv_pmc_bbram_ctrl
+- None
+CIPS_0_pspmc_0_psv_pmc_cfi_cframe_0:
+- psv_pmc_cfi_cframe
+- cframe
+CIPS_0_pspmc_0_psv_pmc_cfi_cframe_1:
+- psv_pmc_cfi_cframe
+- cframe
+CIPS_0_pspmc_0_psv_pmc_cfi_cframe_10:
+- psv_pmc_cfi_cframe
+- cframe
+CIPS_0_pspmc_0_psv_pmc_cfi_cframe_11:
+- psv_pmc_cfi_cframe
+- cframe
+CIPS_0_pspmc_0_psv_pmc_cfi_cframe_12:
+- psv_pmc_cfi_cframe
+- cframe
+CIPS_0_pspmc_0_psv_pmc_cfi_cframe_13:
+- psv_pmc_cfi_cframe
+- cframe
+CIPS_0_pspmc_0_psv_pmc_cfi_cframe_14:
+- psv_pmc_cfi_cframe
+- cframe
+CIPS_0_pspmc_0_psv_pmc_cfi_cframe_2:
+- psv_pmc_cfi_cframe
+- cframe
+CIPS_0_pspmc_0_psv_pmc_cfi_cframe_3:
+- psv_pmc_cfi_cframe
+- cframe
+CIPS_0_pspmc_0_psv_pmc_cfi_cframe_4:
+- psv_pmc_cfi_cframe
+- cframe
+CIPS_0_pspmc_0_psv_pmc_cfi_cframe_5:
+- psv_pmc_cfi_cframe
+- cframe
+CIPS_0_pspmc_0_psv_pmc_cfi_cframe_6:
+- psv_pmc_cfi_cframe
+- cframe
+CIPS_0_pspmc_0_psv_pmc_cfi_cframe_7:
+- psv_pmc_cfi_cframe
+- cframe
+CIPS_0_pspmc_0_psv_pmc_cfi_cframe_8:
+- psv_pmc_cfi_cframe
+- cframe
+CIPS_0_pspmc_0_psv_pmc_cfi_cframe_9:
+- psv_pmc_cfi_cframe
+- cframe
+CIPS_0_pspmc_0_psv_pmc_cfi_cframe_bcast:
+- psv_pmc_cfi_cframe
+- cframe
+CIPS_0_pspmc_0_psv_pmc_cfu_apb_0:
+- psv_pmc_cfu_apb
+- cfupmc
+CIPS_0_pspmc_0_psv_pmc_dma_0:
+- psv_pmc_dma
+- csudma
+CIPS_0_pspmc_0_psv_pmc_dma_1:
+- psv_pmc_dma
+- csudma
+CIPS_0_pspmc_0_psv_pmc_efuse_cache:
+- psv_pmc_efuse_cache
+- None
+CIPS_0_pspmc_0_psv_pmc_efuse_ctrl:
+- psv_pmc_efuse_ctrl
+- None
+CIPS_0_pspmc_0_psv_pmc_global_0:
+- psv_pmc_global
+- None
+CIPS_0_pspmc_0_psv_pmc_gpio_0:
+- psv_pmc_gpio
+- gpiops
+CIPS_0_pspmc_0_psv_pmc_iou_slcr_0:
+- psv_pmc_iou_slcr
+- None
+CIPS_0_pspmc_0_psv_pmc_ppu1_mdm_0:
+- psv_pmc_ppu1_mdm
+- uartlite
+CIPS_0_pspmc_0_psv_pmc_qspi_0:
+- psv_pmc_qspi
+- qspipsu
+CIPS_0_pspmc_0_psv_pmc_ram_npi:
+- psv_pmc_ram_npi
+- None
+CIPS_0_pspmc_0_psv_pmc_rsa:
+- psv_pmc_rsa
+- None
+CIPS_0_pspmc_0_psv_pmc_rtc_0:
+- psv_pmc_rtc
+- rtcpsu
+CIPS_0_pspmc_0_psv_pmc_sd_1:
+- psv_pmc_sd
+- sdps
+CIPS_0_pspmc_0_psv_pmc_sha:
+- psv_pmc_sha
+- None
+CIPS_0_pspmc_0_psv_pmc_slave_boot:
+- psv_pmc_slave_boot
+- None
+CIPS_0_pspmc_0_psv_pmc_slave_boot_stream:
+- psv_pmc_slave_boot_stream
+- None
+CIPS_0_pspmc_0_psv_pmc_sysmon_0:
+- psv_pmc_sysmon
+- sysmonpsv
+CIPS_0_pspmc_0_psv_pmc_tap:
+- psv_pmc_tap
+- None
+CIPS_0_pspmc_0_psv_pmc_trng:
+- psv_pmc_trng
+- trngpsv
+CIPS_0_pspmc_0_psv_pmc_xmpu_0:
+- psv_pmc_xmpu
+- None
+CIPS_0_pspmc_0_psv_pmc_xppu_0:
+- psv_pmc_xppu
+- None
+CIPS_0_pspmc_0_psv_pmc_xppu_npi_0:
+- psv_pmc_xppu_npi
+- None
+CIPS_0_pspmc_0_psv_psm_global_reg:
+- psv_psm_global_reg
+- None
+CIPS_0_pspmc_0_psv_psm_iomodule_0:
+- iomodule
+- iomodule
+CIPS_0_pspmc_0_psv_psm_ram_data_cntlr:
+- PSM_PPU
+- None
+CIPS_0_pspmc_0_psv_psm_ram_instr_cntlr:
+- ram_instr_cntlr
+- None
+CIPS_0_pspmc_0_psv_psm_tmr_inject_0:
+- tmr_inject
+- tmr_inject
+CIPS_0_pspmc_0_psv_psm_tmr_manager_0:
+- tmr_manager
+- tmr_manager
+CIPS_0_pspmc_0_psv_r5_0_atcm_global:
+- psv_tcm_global
+- None
+CIPS_0_pspmc_0_psv_r5_1_atcm_global:
+- psv_tcm_global
+- None
+CIPS_0_pspmc_0_psv_r5_1_btcm_global:
+- psv_tcm_global
+- None
+CIPS_0_pspmc_0_psv_sbsauart_0:
+- psv_sbsauart
+- uartpsv
+CIPS_0_pspmc_0_psv_scntr_0:
+- psv_scntr
+- None
+CIPS_0_pspmc_0_psv_scntrs_0:
+- psv_scntrs
+- None
+CIPS_0_pspmc_0_psv_ttc_0:
+- psv_ttc
+- ttcps
+CIPS_0_pspmc_0_psv_usb_0:
+- psv_usb
+- None
+CIPS_0_pspmc_0_psv_usb_xhci_0:
+- psv_usb_xhci
+- usbpsu
+VitisRegion_mm2s:
+- mm2s
+- None
+VitisRegion_s2mm:
+- s2mm
+- None
+axi_intc_cascaded_1:
+- axi_intc
+- intc
+axi_intc_parent:
+- axi_intc
+- intc

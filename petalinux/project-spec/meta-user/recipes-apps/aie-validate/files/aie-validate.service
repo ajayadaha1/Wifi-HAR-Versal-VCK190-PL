@@ -1,0 +1,14 @@
+[Unit]
+Description=AIE DDR->AIE->DDR on-boot validation
+After=multi-user.target
+
+[Service]
+Type=oneshot
+ExecStart=/home/root/aie-validate/aie-validate-autorun.sh
+StandardOutput=journal+console
+StandardError=journal+console
+RemainAfterExit=yes
+TimeoutStartSec=180
+
+[Install]
+WantedBy=multi-user.target
