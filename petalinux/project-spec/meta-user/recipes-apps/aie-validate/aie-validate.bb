@@ -27,6 +27,8 @@ INHIBIT_DEFAULT_DEPS = "1"
 INSANE_SKIP:${PN} += "arch already-stripped ldflags file-rdeps"
 INHIBIT_PACKAGE_STRIP = "1"
 INHIBIT_SYSROOT_STRIP = "1"
+# Prebuilt aarch64 ELFs: skip debug-split (needs the cross objcopy we intentionally don't pull).
+INHIBIT_PACKAGE_DEBUG_SPLIT = "1"
 
 FILES:${PN} += "/home/root/aie-validate /etc/systemd/system"
 
