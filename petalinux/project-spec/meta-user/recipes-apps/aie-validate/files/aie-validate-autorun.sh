@@ -17,8 +17,8 @@ echo 1 4 1 7 > /proc/sys/kernel/printk 2>/dev/null || true
   echo "--- lsmod aie/zocl ---"; lsmod | grep -iE 'aie|zocl' || true
   echo "--- /dev nodes ---"; ls -l /dev/dri /dev/aie* /dev/zocl* 2>&1 || true
   echo "--- xbutil examine ---"; xbutil examine 2>&1 | head -50 || true
-  echo "--- host (timeout 60s) ---"
-  timeout 60 ./host feature_graph.xclbin input.txt golden.txt
+  echo "--- host_3br (timeout 60s) ---"
+  timeout 60 ./host_3br feature_graph_3br.xclbin
   echo "host_rc=$?"
   echo "--- dmesg aie/zocl tail ---"; dmesg 2>/dev/null | grep -iE 'aie|zocl|zyxclmm|xrt' | grep -viE 'is gated|failed to write to 0xc0|reg op 0 failed' | tail -20 || true
   echo "===== AIE-VALIDATE END ====="

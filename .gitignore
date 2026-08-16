@@ -36,6 +36,10 @@ aie/host/host_diag
 aie/host/host_fix
 aie/host/host_3br
 
+# PetaLinux recipe prebuilt binaries (regenerate per README before petalinux-build)
+petalinux/project-spec/meta-user/recipes-apps/aie-validate/files/host
+petalinux/project-spec/meta-user/recipes-apps/aie-validate/files/host_3br
+
 # PetaLinux build outputs
 images/
 build/
