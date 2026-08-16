@@ -9,6 +9,7 @@
 #include <fstream>
 #include <string>
 #include <vector>
+#include <unistd.h>
 
 #include "xrt/xrt_device.h"
 #include "xrt/xrt_kernel.h"
@@ -25,7 +26,12 @@ static std::vector<float> load_floats(const char* path) {
 struct Branch { const char* name; int n_in; int n_out; const char* in_file; const char* gold_file; };
 
 int main(int argc, char** argv) {
-    const char* xclbin = (argc > 1) ? argv[1] : "feature_graph_3br.xclbin";
+    const char* xclbin = "feature_graph_3br.xclbin";
+    bool stream = false;                          // --stream: continuous CSV feature output
+    for (int i = 1; i < argc; i++) {
+        std::string a = argv[i];
+        if (a == "--stream") stream = true; else xclbin = argv[i];
+    }
     const Branch B[3] = {
         {"mot", 256, 3,  "input.txt",        "golden.txt"},
         {"brt", 64,  33, "breath_input.txt", "breath_golden.txt"},
@@ -58,6 +64,29 @@ int main(int argc, char** argv) {
 
     auto graph = xrt::graph(device, uuid, "feature_graph");
     graph.reset();
+
+    if (stream) {                                 // continuous: emit CSV mot[3],brt[33],phs[3] per window
+        for (;;) {
+            for (int i = 0; i < 3; i++) {          // refresh inputs (a live feeder can update the .txt)
+                auto in = load_floats(B[i].in_file);
+                if (static_cast<int>(in.size()) >= B[i].n_in) { ibo[i].write(in.data()); ibo[i].sync(XCL_BO_SYNC_BO_TO_DEVICE); }
+            }
+            for (int i = 0; i < 3; i++) { rsm[i] = xrt::run(ksm[i]); rsm[i].set_arg(0, obo[i]); rsm[i].set_arg(2, B[i].n_out); rsm[i].start(); }
+            for (int i = 0; i < 3; i++) { rmm[i] = xrt::run(kmm[i]); rmm[i].set_arg(0, ibo[i]); rmm[i].set_arg(2, B[i].n_in); rmm[i].start(); }
+            graph.run(1);
+            for (int i = 0; i < 3; i++) rmm[i].wait();
+            for (int i = 0; i < 3; i++) rsm[i].wait();
+            std::string line;
+            for (int i = 0; i < 3; i++) {
+                obo[i].sync(XCL_BO_SYNC_BO_FROM_DEVICE);
+                std::vector<float> out(B[i].n_out); obo[i].read(out.data());
+                for (int j = 0; j < B[i].n_out; j++) { if (!line.empty()) line += ","; line += std::to_string(out[j]); }
+            }
+            std::printf("%s\n", line.c_str());
+            std::fflush(stdout);
+            usleep(200000);                        // ~5 Hz
+        }
+    }
 
     for (int i = 0; i < 3; i++) {                 // sinks first
         rsm[i] = xrt::run(ksm[i]);
