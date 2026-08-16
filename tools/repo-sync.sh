@@ -36,5 +36,7 @@ rsync -a $EXC "$WORK/hw/scripts/"     "$REPO/hw/scripts/"
 rsync -a $EXC "$WORK/hw/constraints/" "$REPO/hw/constraints/"
 rsync -a $EXC "$WORK/hw/hdl/"         "$REPO/hw/hdl/"
 rsync -a $EXC "$WORK/hw/ip_repo/"     "$REPO/hw/ip_repo/"
+# 7) Live dashboard app (pure-Python 3 stdlib; served on-target).
+rsync -a $EXC "$WORK/live/" "$REPO/live/"
 
-echo "repo-sync: mirrored meta-user + configs + aie + hls + hw (source only)."
+echo "repo-sync: mirrored meta-user + configs + aie + hls + hw + live (source only)."

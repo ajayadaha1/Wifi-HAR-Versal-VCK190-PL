@@ -1038,7 +1038,7 @@ CONFIG_pciutils=y
 #
 # python3-numpy 
 #
-# CONFIG_python3-numpy is not set
+CONFIG_python3-numpy=y
 # CONFIG_python3-numpy-dbg is not set
 # CONFIG_python3-numpy-dev is not set
 
