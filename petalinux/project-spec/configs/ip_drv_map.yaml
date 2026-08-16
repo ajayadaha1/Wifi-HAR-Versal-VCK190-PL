@@ -274,10 +274,22 @@ CIPS_0_pspmc_0_psv_usb_0:
 CIPS_0_pspmc_0_psv_usb_xhci_0:
 - psv_usb_xhci
 - usbpsu
-VitisRegion_mm2s:
+VitisRegion_mm2s_brt:
 - mm2s
 - None
-VitisRegion_s2mm:
+VitisRegion_mm2s_mot:
+- mm2s
+- None
+VitisRegion_mm2s_phs:
+- mm2s
+- None
+VitisRegion_s2mm_brt:
+- s2mm
+- None
+VitisRegion_s2mm_mot:
+- s2mm
+- None
+VitisRegion_s2mm_phs:
 - s2mm
 - None
 axi_intc_cascaded_1:

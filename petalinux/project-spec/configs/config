@@ -270,7 +270,7 @@ CONFIG_MC_PLNX_IMAGES_LOCATION="${PROOT}/images/${BB_CURRENT_MC}"
 #
 # TMPDIR Location
 #
-CONFIG_TMP_DIR_LOCATION="/tmp/xilinx-vck190-2025.2-2026.08.14-01.07.40-tgC"
+CONFIG_TMP_DIR_LOCATION="/tmp/petalinux-ajayad/vck190-3br-tmp"
 
 #
 # Devtool Workspace Location
