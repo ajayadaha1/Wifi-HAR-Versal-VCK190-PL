@@ -41,8 +41,9 @@ int main(int argc, char** argv) {
     std::vector<std::vector<float>> gold(3);
 
     for (int i = 0; i < 3; i++) {
-        kmm[i] = xrt::kernel(device, uuid, (std::string("mm2s_") + B[i].name).c_str());
-        ksm[i] = xrt::kernel(device, uuid, (std::string("s2mm_") + B[i].name).c_str());
+        // XRT name = "kernel:{cu}"; kernels are mm2s/s2mm, CUs are mm2s_mot/brt/phs etc.
+        kmm[i] = xrt::kernel(device, uuid, (std::string("mm2s:{mm2s_") + B[i].name + "}").c_str());
+        ksm[i] = xrt::kernel(device, uuid, (std::string("s2mm:{s2mm_") + B[i].name + "}").c_str());
         auto in = load_floats(B[i].in_file);
         if (static_cast<int>(in.size()) < B[i].n_in) {
             std::printf("ERROR: %s needs %d samples, got %zu\n", B[i].in_file, B[i].n_in, in.size());
