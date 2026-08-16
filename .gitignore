@@ -63,3 +63,5 @@ petalinux/project-spec/configs/gen-machineconf.log*
 # misc
 *.pyc
 __pycache__/
+aie/feature_graph/pl/run_hls_*.tcl
+aie/pl/run_hls_*.tcl
