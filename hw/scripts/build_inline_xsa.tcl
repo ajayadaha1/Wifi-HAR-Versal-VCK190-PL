@@ -35,44 +35,60 @@
 #     from ch2_txoutclk; single 125 MHz userclk2 for all 3 MAC clocks; s_axi needs a
 #     Linux axienet devicetree node. See docs/PROJECT_STATE.md for the full report.
 #
-# Modeled on build_baseline.tcl (impl + write_hw_platform) but on the VPL project.
-set REPO_HW [file normalize [file dirname [info script]]/..]
-set FG      [file normalize $REPO_HW/../aie]          ;# feature_graph work area
-set PRJ     $FG/_x/link/vivado/vpl/prj/prj.xpr        ;# v++ VPL project (build output)
-set XDC     $REPO_HW/constraints/inline.xdc
-set OUT_XSA $REPO_HW/inline_eth_hw/inline.xsa
+# ---------------------------------------------------------------------------
+# Reference-style flow (like ps_emio_basex_1g/Scripts): configure the project,
+# source the main BD tcl, then build. The two files in this dir are:
+#     build_inline_xsa.tcl   (this: the top - configure + run)
+#     inline_full_bd.tcl     (the main block diagram)
+#
+# PREREQ: run ../build_vivado.sh first (v++ link) so the mover/AIE IPs the BD
+#   references exist at aie/_x/link/int/xo/ip_repo.
+# INSPECT the BD: run `vivado -source build_inline_xsa.tcl` in the GUI - the BD is
+#   built, validated and opened (step 3) before the guarded wiring/impl steps.
+# ---------------------------------------------------------------------------
+set HERE       [file normalize [file dirname [info script]]]
+set REPO_HW    [file normalize $HERE/..]
+set FG         [file normalize $REPO_HW/../aie]
+set PART       xcvc1902-vsva2197-2MP-e-S
+set BOARD      xilinx.com:vck190:part0:3.4
+set XDC        $REPO_HW/constraints/inline.xdc
+set OUT_XSA    $REPO_HW/inline_eth_hw/inline.xsa
+set VPL_IPREPO $FG/_x/link/int/xo/ip_repo
 
 proc add_eth_phy {} {
-    # TODO(todo #5): implement the PCS/PMA + GT + refclk + clocking + s_axi wiring
-    # per the plan in this file's header. Until then, refuse to proceed so we never
-    # emit an XSA with the MAC PHY side unconnected.
+    # TODO(todo #5): PCS/PMA + GT + refclk + clocking + s_axi wiring (see header).
+    # Guard: refuse to build until wired, so we never emit an XSA with the MAC
+    # PHY side unconnected.
     return -code error "add_eth_phy: inline PHY/GT wiring not yet implemented (see header)"
 }
 
-if {![file exists $PRJ]} {
-    error "VPL project not found: $PRJ  -- run build_vivado.sh (AIE link) first."
+# 1) configure project + IP catalog (csi_udp_parser + the v++ mover/AIE IPs)
+create_project -force inline_eth $REPO_HW/inline_eth_hw -part $PART
+set_property board_part $BOARD [current_project]
+set ipdirs [list $REPO_HW/ip_repo]
+if {[file exists $VPL_IPREPO]} {
+    lappend ipdirs $VPL_IPREPO
+} else {
+    puts "WARN: v++ mover/AIE IP repo not found ($VPL_IPREPO) - run build_vivado.sh first."
 }
-open_project $PRJ
-set_property ip_repo_paths [list $REPO_HW/ip_repo $FG/_x/link/int/xo/ip_repo] [current_project]
+set_property ip_repo_paths $ipdirs [current_project]
 update_ip_catalog
-open_bd_design [get_files vitis_design.bd]
 
-# Apply the datapath graft idempotently (parser + MAC), then the PHY/GT wiring.
-if {[llength [get_bd_cells -quiet axi_eth_0]] == 0} {
-    source $REPO_HW/scripts/inline_full.tcl
-}
-add_eth_phy                                            ;# <-- implement to enable the rest
+# 2) source the main BD tcl (rebuilds the inline block diagram)
+source $HERE/inline_full_bd.tcl
 
-assign_bd_address
-save_bd_design
-validate_bd_design
-add_files -fileset constrs_1 -norecurse $XDC
-set_property used_in_implementation true [get_files inline.xdc]
-generate_target all [get_files vitis_design.bd]
-set wrap [make_wrapper -files [get_files vitis_design.bd] -top -force]
-add_files -norecurse -force $wrap
-set_property top vitis_design_wrapper [current_fileset]
+# 3) wrap + validate + open for inspection
+make_wrapper -files [get_files *vitis_design.bd] -top -import -force
 update_compile_order -fileset sources_1
+validate_bd_design
+save_bd_design
+open_bd_design [get_files *vitis_design.bd]
+puts "BD built + open. Inspect now, or let the script continue to the XSA."
+
+# 4) finish the MAC PHY/GT wiring, then impl -> XSA  (guarded until add_eth_phy is done)
+add_eth_phy
+add_files -fileset constrs_1 -norecurse $XDC
+generate_target all [get_files *vitis_design.bd]
 launch_runs synth_1 -jobs 8 ; wait_on_run synth_1
 launch_runs impl_1 -to_step write_device_image -jobs 8 ; wait_on_run impl_1
 write_hw_platform -fixed -include_bit -force $OUT_XSA
