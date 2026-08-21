@@ -1398,3 +1398,14 @@ RESOLVED. Pinning csi_mux/S_AXI_CTRL @0xA4060000 through the widened icn_ctrl
 datapath is bit-accurate with the mux + control in place. D2a is DONE on silicon.
 The board can now select the AIE source at runtime (S01=mm2s test / S00=parser
 live), which is the switch the live Pi path (D2b GT+MAC front-end) will use.
+
+### Demo restore after D2a test - blocked by flaky external-storage boot (2026-08-21)
+After the D2a on-silicon PASS, re-flashed the demo (BOOT_d1.BIN + rootfs_demo,
+boot_demo.tcl) to restore the live dashboard. TWO clean reflash+boot cycles both
+WEDGE at the external-SD/USB fsck/mount phase with `PMC EAM ERR1 0x82000` +
+Error ID 0xD/0x13 (SC-uptime timestamps => SC-side msgs, §22), console frozen,
+demo autorun never reached. The demo image is good (it streamed 4800+ features
+earlier) and the D2a image booted cleanly through the same phase - so this is the
+known flaky external-storage boot (§22), board-state, not a design regression.
+Recovery: a board power-cycle (SC/board-farm action) or physically detaching the
+SD/USB, then re-run boot_demo.tcl. Board hold retained (not released).
