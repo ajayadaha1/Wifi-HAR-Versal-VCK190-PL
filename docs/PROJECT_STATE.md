@@ -1378,3 +1378,23 @@ GT<->MAC pin map (PROJECT_STATE §313-345), 125/100 MHz MAC clocks, and SFP0 XDC
 This needs multiple board-cycle bring-ups AND a physical Raspberry Pi (nexmon) on
 SFP0 to validate - neither fast-iterable nor live-testable in this environment.
 The overlay + link script capture the exact steps; the front-end is the last mile.
+
+### ✅ D2a CO-GEN HW PASS (2026-08-21, chanterelle8/vck190-11) - csi_mux control FIXED
+Flashed `BOOT_d2mux.BIN` + `rootfs_d2mux` (boot_d2mux.tcl) on silicon. The
+d2mux-validate autorun result (board serial):
+
+    D2MUX> --- mux control read (pre) ---
+    csi_mux @0xa4060000 RESPONDS: MI0=0x80000000 CTRL=0x00000000   <- control-AXI answers (was hung in D1)
+    D2MUX> --- set route S01=mm2s + read back ---
+    csi_mux MI0 select = 1 (mm2s/DDR)                              <- /dev/mem write+readback OK
+    D2MUX> running host (mm2s->csi_mux(S01)->AIE->s2mm):
+    AIE result: mean=-0.002065 var=0.302189 power=0.302193
+    golden:     mean=-0.002065 var=0.302189 power=0.302193
+    max_abs_err=5.960e-08 -> PASS,  host_rc=0
+
+=> The D1 "control-routed axis_switch hung on its /dev/mem write" blocker is
+RESOLVED. Pinning csi_mux/S_AXI_CTRL @0xA4060000 through the widened icn_ctrl
+(M07) makes the mux control reachable from Linux, and the mm2s->csi_mux->AIE->s2mm
+datapath is bit-accurate with the mux + control in place. D2a is DONE on silicon.
+The board can now select the AIE source at runtime (S01=mm2s test / S00=parser
+live), which is the switch the live Pi path (D2b GT+MAC front-end) will use.
