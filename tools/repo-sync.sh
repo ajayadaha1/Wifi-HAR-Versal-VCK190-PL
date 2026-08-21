@@ -12,7 +12,7 @@ REPO=/group/bcapps/ajayad/master_thesis_rebirth/Wifi-HAR-Versal-VCK190-PL
 # NOTE: host binaries are caught by .gitignore at commit time; we do NOT exclude a
 # bare "host" here because that would also drop the aie/host/ SOURCE directory.
 EXC="--exclude=.Xil/ --exclude=.srcs/ --exclude=*.jou --exclude=*.log --exclude=*.str --exclude=*.backup* \
---exclude=.crashReporter/ --exclude=d1_stage/ --exclude=demo_stage/ --exclude=host --exclude=host_demo --exclude=host_3br \
+--exclude=.crashReporter/ --exclude=d1_stage/ --exclude=demo_stage/ --exclude=d2mux_stage/ --exclude=host --exclude=host_demo --exclude=host_3br \
 --exclude=*.cache/ --exclude=*.hw/ --exclude=*.runs/ --exclude=*.gen/ --exclude=*.sim/ --exclude=*.ip_user_files/ \
 --exclude=_x/ --exclude=_x*/ --exclude=Work/ --exclude=Work_hw*/ --exclude=package/ --exclude=package_*/ --exclude=sd_stage*/ \
 --exclude=*.xsa --exclude=*.xclbin --exclude=*.pdi --exclude=*.xo --exclude=*.o --exclude=*.a --exclude=*.ltx --exclude=.ipcache/ \

@@ -1323,3 +1323,58 @@ demo-autorun.sh (board-hosted): drop_caches; start live_dashboard.py :8095; loop
 the PROVEN single-shot host per window -> pure-float feature lines to /tmp/feat.csv;
 console heartbeat. Files under work/aie/feature_graph/demo_stage/{aie-d1,csi_ref}.
 Board held (not released) per request. Console: board_console_demo_BOARDHOSTED.log.
+
+---
+
+## 23. 2026-08-21 - D2: csi_mux control fix (D2a) + Ethernet parser integration (D2b)
+
+Resumes the deferred D2 work (§22): (a) fix the csi_mux control-AXI that hung in
+D1, and (b) port the live Ethernet front-end into the v++ co-gen overlay.
+
+### Method: fast structural (validate-only) overlay checks
+Each overlay ends with `validate_bd_design` + an optional `error` guarded by env
+`D2_VALIDATE_ONLY`. Running the v++ link with that set aborts right after the
+overlay (pre-synth, ~2.5 min) so the BD manipulation is proven before committing
+to the ~17 min synth+impl. Two discovery overlays (overlay_d2_probe*.tcl) first
+dumped the FLAT postSysLink control fabric:
+- control is `/axi_smc_vip_hier/icn_ctrl` (smartconnect, NUM_MI=7, aclk =
+  `/clk_wizard_0_clk_out1_o2`), fed from CIPS `M_AXI_FPD` (net CIPS_0_M_AXI_GP0);
+  `mm2s/s_axi_control` <- icn_ctrl/M06. AIE clk `/clk_wizard_0_clk_out1_o2`,
+  reset `/proc_sys_reset_1_peripheral_aresetn`. Free control offset: 0xA406_0000
+  (intc occupy 0xA404/0xA405). mm2s/s2mm control are assigned by v++ AFTER the
+  overlay, so at overlay time only the two intc are mapped.
+
+### ✅ D2a - csi_mux with WORKING control-AXI (BUILT + PACKAGED)
+`overlay_d2_mux.tcl` replaces the D1 register_slice with an `axis_switch` csi_mux
+(2 SI -> 1 MI, ROUTING_MODE=1): S01 = mm2s (DDR test), S00 = parser (live, D2b),
+M00 -> ai_engine (untouched, so the co-gen binding holds). Control is added by
+widening icn_ctrl 7->8, exposing a new boundary master `M07_AXI`, wiring it to
+`csi_mux/S_AXI_CTRL`, and PINNING the address at **0xA4060000** (matches
+`mux_set.py`). The earlier D1 mux hang was a wrong/unassigned control address;
+pinning it + wiring through icn_ctrl exactly as the platform expects fixes it.
+- validate_bd_design PASSED; full link -> `inline_cogen_d2mux.xsa` (3.78 MB) which
+  CARRIES the paired shim solution (aie_pl_intf.json + aieshim_solution.aiesol +
+  aie_partition.json) - binding preserved with the mux + control inserted.
+- Packaged: `inline_cogen_d2mux.xclbin` (7.16 MB) + co-gen CDO (28156 B),
+  `BOOT_d2mux.BIN` (4.2 MB), `rootfs_d2mux.cpio.gz.u-boot` (239 MB), `boot_d2mux.tcl`.
+- Autorun `d2mux-autorun.sh` proves the fix: `mux_probe.py` reads csi_mux
+  @0xA4060000 (RESPONDS != hang), `mux_set.py 1` routes S01, then `host` runs
+  mm2s->csi_mux->AIE->s2mm vs golden. Ready to flash; on-silicon run pending a
+  board (chanterelle8 is running the live demo; farm boards need interactive
+  systest acquisition unavailable from the batch tooling).
+
+### ✅ D2b - Ethernet parser integrated into the co-gen BD (STRUCTURAL PASS)
+`overlay_d2_eth.tcl` (+ `link_cogen_d2eth.sh`) extends D2a: it adds the
+`csi_udp_parser` HLS IP feeding `csi_mux/S00` with its own icn_ctrl control master
+@0xA4020000. KEY: the parser IP repo + the GT RTL/XCI are injected via a
+**PRE-SysLink overlay** (`compiler.userPreSysLinkOverlayTcl`) doing
+`set_property ip_repo_paths` + `add_files` - confirmed working
+(`Loaded user IP repository .../hw/ip_repo`). validate_bd_design PASSED with the
+parser wired to the mux (rx tied off; `D2_ETH_FULL` unset).
+
+REMAINING for the live Pi path (D2_ETH_FULL=1): instantiate axi_ethernet(1000BaseX)
++ eth_gt_phy_0 (GT wrapper) + rx_cdc_fifo + rx_dwidth -> parser.rx, the discrete
+GT<->MAC pin map (PROJECT_STATE §313-345), 125/100 MHz MAC clocks, and SFP0 XDC.
+This needs multiple board-cycle bring-ups AND a physical Raspberry Pi (nexmon) on
+SFP0 to validate - neither fast-iterable nor live-testable in this environment.
+The overlay + link script capture the exact steps; the front-end is the last mile.
