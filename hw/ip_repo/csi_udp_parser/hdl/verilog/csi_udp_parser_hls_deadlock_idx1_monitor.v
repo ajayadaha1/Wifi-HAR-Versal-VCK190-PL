@@ -1,9 +1,9 @@
 `timescale 1 ns / 1 ps
 
-module csi_udp_parser_hls_deadlock_idx1_monitor ( // for module csi_udp_parser_csi_udp_parser_inst.grp_csi_udp_parser_Pipeline_parse_fu_111
+module csi_udp_parser_hls_deadlock_idx1_monitor ( // for module csi_udp_parser_csi_udp_parser_inst.grp_csi_udp_parser_Pipeline_parse_fu_131
     input wire clock,
     input wire reset,
-    input wire [1:0] axis_block_sigs,
+    input wire [2:0] axis_block_sigs,
     input wire [1:0] inst_idle_sigs,
     input wire [0:0] inst_block_sigs,
     output wire block
@@ -20,7 +20,7 @@ wire seq_is_axis_block;
 assign block = monitor_find_block;
 assign all_sub_parallel_has_block = 1'b0;
 assign all_sub_single_has_block = 1'b0;
-assign cur_axis_has_block = 1'b0 | axis_block_sigs[0] | axis_block_sigs[1];
+assign cur_axis_has_block = 1'b0 | axis_block_sigs[1] | axis_block_sigs[2];
 assign seq_is_axis_block = all_sub_parallel_has_block | all_sub_single_has_block | cur_axis_has_block;
 
 always @(posedge clock) begin

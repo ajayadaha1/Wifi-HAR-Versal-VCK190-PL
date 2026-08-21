@@ -1,0 +1,21 @@
+// inline_extras.dtsi - additions to the SDT for the inline Arch-B design.
+//
+// Appended to sdt_inline/system-top.dts by build_inline_boot.sh.
+//
+// s2mm_meta is a PL master writing straight to DDR with no IOMMU and no driver
+// behind it, so the buffer it targets has to be memory Linux does not own -
+// otherwise it will scribble on the kernel. csi_ctl defaults to 0x7000_0000,
+// which is what is carved out here. Keep the two in step (csi_ctl --buf).
+
+/ {
+	reserved-memory {
+		#address-cells = <2>;
+		#size-cells = <2>;
+		ranges;
+
+		csi_meta_reserved: csi-meta@70000000 {
+			no-map;
+			reg = <0x0 0x70000000 0x0 0x00100000>;   /* 1 MB */
+		};
+	};
+};

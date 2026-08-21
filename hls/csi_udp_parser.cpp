@@ -3,13 +3,13 @@
 // ---------------------------------------------------------------------------
 #include "csi_udp_parser.hpp"
 
-void csi_udp_parser(hls::stream<axis_byte>  &rx,
-                    hls::stream<axis_csi>   &csi_out,
-                    hls::stream<csi_meta_t> &meta_out,
-                    ap_uint<16>              udp_port) {
+void csi_udp_parser(hls::stream<axis_byte> &rx,
+                    hls::stream<axis_csi>  &csi_out,
+                    hls::stream<axis_meta> &meta_out,
+                    ap_uint<16>             udp_port) {
 #pragma HLS INTERFACE axis port=rx
 #pragma HLS INTERFACE axis port=csi_out
-#pragma HLS INTERFACE ap_fifo port=meta_out
+#pragma HLS INTERFACE axis port=meta_out
 #pragma HLS INTERFACE s_axilite port=udp_port bundle=ctrl
 #pragma HLS INTERFACE s_axilite port=return   bundle=ctrl
 
@@ -72,6 +72,10 @@ void csi_udp_parser(hls::stream<axis_byte>  &rx,
     if (keep && n_sub > 0) {
         meta.n_sub = n_sub;
         meta.valid = 1;
-        meta_out.write(meta);
+        axis_meta mo;
+        mo.data = csi_meta_pack(meta);
+        mo.keep = -1; mo.strb = -1;
+        mo.last = 1;              // one metadata record per frame
+        meta_out.write(mo);
     }
 }

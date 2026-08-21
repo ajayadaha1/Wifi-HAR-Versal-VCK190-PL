@@ -61,9 +61,9 @@ int main(int argc, char **argv) {
     bool synthetic = (argc <= 1);
     if (frame.empty()) { printf("FAIL: empty input frame\n"); return 1; }
 
-    hls::stream<axis_byte>  rx;
-    hls::stream<axis_csi>   csi_out;
-    hls::stream<csi_meta_t> meta_out;
+    hls::stream<axis_byte> rx;
+    hls::stream<axis_csi>  csi_out;
+    hls::stream<axis_meta> meta_out;
 
     for (size_t i = 0; i < frame.size(); i++) {
         axis_byte beat;
@@ -88,7 +88,9 @@ int main(int argc, char **argv) {
     }
 
     if (meta_out.empty()) { printf("FAIL: no metadata emitted\n"); return 1; }
-    csi_meta_t m = meta_out.read();
+    axis_meta mw = meta_out.read();
+    csi_meta_t m = csi_meta_unpack(mw.data);
+    if (!mw.last) { printf("FAIL: metadata beat missing TLAST\n"); return 1; }
     printf("meta: valid=%d seq=0x%04x rssi=%d n_sub=%d chanspec=0x%04x\n",
            (int)m.valid, (unsigned)m.seq, (int)m.rssi, (int)m.n_sub, (unsigned)m.chanspec);
     printf("emitted %d CSI samples\n", n);

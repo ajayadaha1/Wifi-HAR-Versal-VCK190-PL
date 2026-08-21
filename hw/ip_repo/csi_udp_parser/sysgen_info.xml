@@ -32,18 +32,33 @@
         <fractionWidth>0</fractionWidth>
       </RtlPort>
       <RtlPort>
-        <name>meta_out_din</name>
-        <type>Signed</type>
+        <name>meta_out_TDATA</name>
+        <type>Unsigned</type>
         <fractionWidth>0</fractionWidth>
       </RtlPort>
       <RtlPort>
-        <name>meta_out_full_n</name>
-        <type>Signed</type>
+        <name>meta_out_TKEEP</name>
+        <type>Unsigned</type>
         <fractionWidth>0</fractionWidth>
       </RtlPort>
       <RtlPort>
-        <name>meta_out_write</name>
-        <type>Signed</type>
+        <name>meta_out_TLAST</name>
+        <type>Unsigned</type>
+        <fractionWidth>0</fractionWidth>
+      </RtlPort>
+      <RtlPort>
+        <name>meta_out_TREADY</name>
+        <type>Unsigned</type>
+        <fractionWidth>0</fractionWidth>
+      </RtlPort>
+      <RtlPort>
+        <name>meta_out_TSTRB</name>
+        <type>Unsigned</type>
+        <fractionWidth>0</fractionWidth>
+      </RtlPort>
+      <RtlPort>
+        <name>meta_out_TVALID</name>
+        <type>Unsigned</type>
         <fractionWidth>0</fractionWidth>
       </RtlPort>
       <RtlPort>

@@ -6,7 +6,7 @@
 
 `timescale 1 ns / 1 ps 
 
-(* CORE_GENERATION_INFO="csi_udp_parser_csi_udp_parser,hls_ip_2025_2,{HLS_INPUT_TYPE=cxx,HLS_INPUT_FLOAT=0,HLS_INPUT_FIXED=0,HLS_INPUT_PART=xcvc1902-vsva2197-2MP-e-S,HLS_INPUT_CLOCK=8.000000,HLS_INPUT_ARCH=others,HLS_SYN_CLOCK=2.271000,HLS_SYN_LAT=-1,HLS_SYN_TPT=none,HLS_SYN_MEM=0,HLS_SYN_DSP=0,HLS_SYN_FF=306,HLS_SYN_LUT=429,HLS_VERSION=2025_2}" *)
+(* CORE_GENERATION_INFO="csi_udp_parser_csi_udp_parser,hls_ip_2025_2,{HLS_INPUT_TYPE=cxx,HLS_INPUT_FLOAT=0,HLS_INPUT_FIXED=0,HLS_INPUT_PART=xcvc1902-vsva2197-2MP-e-S,HLS_INPUT_CLOCK=8.000000,HLS_INPUT_ARCH=others,HLS_SYN_CLOCK=2.271000,HLS_SYN_LAT=-1,HLS_SYN_TPT=none,HLS_SYN_MEM=0,HLS_SYN_DSP=0,HLS_SYN_FF=308,HLS_SYN_LUT=431,HLS_VERSION=2025_2}" *)
 
 (* DowngradeIPIdentifiedWarnings="yes" *)
 module csi_udp_parser (
@@ -24,9 +24,12 @@ module csi_udp_parser (
         csi_out_TKEEP,
         csi_out_TSTRB,
         csi_out_TLAST,
-        meta_out_din,
-        meta_out_full_n,
-        meta_out_write,
+        meta_out_TDATA,
+        meta_out_TVALID,
+        meta_out_TREADY,
+        meta_out_TKEEP,
+        meta_out_TSTRB,
+        meta_out_TLAST,
         s_axi_ctrl_AWVALID,
         s_axi_ctrl_AWREADY,
         s_axi_ctrl_AWADDR,
@@ -47,10 +50,11 @@ module csi_udp_parser (
         interrupt
 );
 
-parameter    ap_ST_fsm_state1 = 4'd1;
-parameter    ap_ST_fsm_state2 = 4'd2;
-parameter    ap_ST_fsm_state3 = 4'd4;
-parameter    ap_ST_fsm_state4 = 4'd8;
+parameter    ap_ST_fsm_state1 = 5'd1;
+parameter    ap_ST_fsm_state2 = 5'd2;
+parameter    ap_ST_fsm_state3 = 5'd4;
+parameter    ap_ST_fsm_state4 = 5'd8;
+parameter    ap_ST_fsm_state5 = 5'd16;
 parameter    C_S_AXI_CTRL_DATA_WIDTH = 32;
 parameter    C_S_AXI_CTRL_ADDR_WIDTH = 5;
 parameter    C_S_AXI_DATA_WIDTH = 32;
@@ -72,9 +76,12 @@ input   csi_out_TREADY;
 output  [3:0] csi_out_TKEEP;
 output  [3:0] csi_out_TSTRB;
 output  [0:0] csi_out_TLAST;
-output  [64:0] meta_out_din;
-input   meta_out_full_n;
-output   meta_out_write;
+output  [63:0] meta_out_TDATA;
+output   meta_out_TVALID;
+input   meta_out_TREADY;
+output  [7:0] meta_out_TKEEP;
+output  [7:0] meta_out_TSTRB;
+output  [0:0] meta_out_TLAST;
 input   s_axi_ctrl_AWVALID;
 output   s_axi_ctrl_AWREADY;
 input  [C_S_AXI_CTRL_ADDR_WIDTH - 1:0] s_axi_ctrl_AWADDR;
@@ -102,55 +109,58 @@ reg    ap_done;
 wire    ap_continue;
 reg    ap_done_reg;
 reg    ap_idle;
-(* fsm_encoding = "none" *) reg   [3:0] ap_CS_fsm;
+(* fsm_encoding = "none" *) reg   [4:0] ap_CS_fsm;
 wire    ap_CS_fsm_state1;
 reg    ap_ready;
 wire   [15:0] udp_port;
-reg    meta_out_blk_n;
+reg    meta_out_TDATA_blk_n;
 wire    ap_CS_fsm_state4;
-wire   [0:0] and_ln72_fu_163_p2;
-reg   [15:0] udp_port_read_reg_226;
+wire   [0:0] and_ln72_fu_183_p2;
+wire    ap_CS_fsm_state5;
+reg   [0:0] and_ln72_reg_245;
+reg   [15:0] udp_port_read_reg_240;
 wire    ap_CS_fsm_state2;
-wire    grp_csi_udp_parser_Pipeline_parse_fu_111_ap_start;
-wire    grp_csi_udp_parser_Pipeline_parse_fu_111_ap_done;
-wire    grp_csi_udp_parser_Pipeline_parse_fu_111_ap_idle;
-wire    grp_csi_udp_parser_Pipeline_parse_fu_111_ap_ready;
-wire    grp_csi_udp_parser_Pipeline_parse_fu_111_csi_out_TREADY;
-wire    grp_csi_udp_parser_Pipeline_parse_fu_111_rx_TREADY;
-wire   [31:0] grp_csi_udp_parser_Pipeline_parse_fu_111_csi_out_TDATA;
-wire    grp_csi_udp_parser_Pipeline_parse_fu_111_csi_out_TVALID;
-wire   [3:0] grp_csi_udp_parser_Pipeline_parse_fu_111_csi_out_TKEEP;
-wire   [3:0] grp_csi_udp_parser_Pipeline_parse_fu_111_csi_out_TSTRB;
-wire   [0:0] grp_csi_udp_parser_Pipeline_parse_fu_111_csi_out_TLAST;
-wire   [15:0] grp_csi_udp_parser_Pipeline_parse_fu_111_n_sub_3_out;
-wire    grp_csi_udp_parser_Pipeline_parse_fu_111_n_sub_3_out_ap_vld;
-wire   [7:0] grp_csi_udp_parser_Pipeline_parse_fu_111_meta_core_spatial_1_out;
-wire    grp_csi_udp_parser_Pipeline_parse_fu_111_meta_core_spatial_1_out_ap_vld;
-wire   [15:0] grp_csi_udp_parser_Pipeline_parse_fu_111_meta_chanspec_3_out;
-wire    grp_csi_udp_parser_Pipeline_parse_fu_111_meta_chanspec_3_out_ap_vld;
-wire   [7:0] grp_csi_udp_parser_Pipeline_parse_fu_111_meta_rssi_2_out;
-wire    grp_csi_udp_parser_Pipeline_parse_fu_111_meta_rssi_2_out_ap_vld;
-wire   [15:0] grp_csi_udp_parser_Pipeline_parse_fu_111_meta_seq_3_out;
-wire    grp_csi_udp_parser_Pipeline_parse_fu_111_meta_seq_3_out_ap_vld;
-wire   [0:0] grp_csi_udp_parser_Pipeline_parse_fu_111_keep_1_out;
-wire    grp_csi_udp_parser_Pipeline_parse_fu_111_keep_1_out_ap_vld;
-reg    grp_csi_udp_parser_Pipeline_parse_fu_111_ap_start_reg;
+reg    ap_block_state4;
+wire    grp_csi_udp_parser_Pipeline_parse_fu_131_ap_start;
+wire    grp_csi_udp_parser_Pipeline_parse_fu_131_ap_done;
+wire    grp_csi_udp_parser_Pipeline_parse_fu_131_ap_idle;
+wire    grp_csi_udp_parser_Pipeline_parse_fu_131_ap_ready;
+wire    grp_csi_udp_parser_Pipeline_parse_fu_131_csi_out_TREADY;
+wire    grp_csi_udp_parser_Pipeline_parse_fu_131_rx_TREADY;
+wire   [31:0] grp_csi_udp_parser_Pipeline_parse_fu_131_csi_out_TDATA;
+wire    grp_csi_udp_parser_Pipeline_parse_fu_131_csi_out_TVALID;
+wire   [3:0] grp_csi_udp_parser_Pipeline_parse_fu_131_csi_out_TKEEP;
+wire   [3:0] grp_csi_udp_parser_Pipeline_parse_fu_131_csi_out_TSTRB;
+wire   [0:0] grp_csi_udp_parser_Pipeline_parse_fu_131_csi_out_TLAST;
+wire   [7:0] grp_csi_udp_parser_Pipeline_parse_fu_131_meta_rssi_out;
+wire    grp_csi_udp_parser_Pipeline_parse_fu_131_meta_rssi_out_ap_vld;
+wire   [15:0] grp_csi_udp_parser_Pipeline_parse_fu_131_meta_seq_out;
+wire    grp_csi_udp_parser_Pipeline_parse_fu_131_meta_seq_out_ap_vld;
+wire   [7:0] grp_csi_udp_parser_Pipeline_parse_fu_131_meta_core_spatial_out;
+wire    grp_csi_udp_parser_Pipeline_parse_fu_131_meta_core_spatial_out_ap_vld;
+wire   [15:0] grp_csi_udp_parser_Pipeline_parse_fu_131_meta_chanspec_out;
+wire    grp_csi_udp_parser_Pipeline_parse_fu_131_meta_chanspec_out_ap_vld;
+wire   [15:0] grp_csi_udp_parser_Pipeline_parse_fu_131_n_sub_3_out;
+wire    grp_csi_udp_parser_Pipeline_parse_fu_131_n_sub_3_out_ap_vld;
+wire   [0:0] grp_csi_udp_parser_Pipeline_parse_fu_131_keep_1_out;
+wire    grp_csi_udp_parser_Pipeline_parse_fu_131_keep_1_out_ap_vld;
+reg    grp_csi_udp_parser_Pipeline_parse_fu_131_ap_start_reg;
 wire    ap_CS_fsm_state3;
 reg   [31:0] csi_out_TDATA_reg;
 reg   [3:0] csi_out_TKEEP_reg;
 reg   [3:0] csi_out_TSTRB_reg;
 reg   [0:0] csi_out_TLAST_reg;
-wire   [64:0] p_0_fu_169_p7;
+wire   [0:0] icmp_ln72_fu_177_p2;
 wire    regslice_both_csi_out_V_data_V_U_apdone_blk;
-reg    ap_block_state4;
-reg    meta_out_write_local;
-wire   [0:0] icmp_ln72_fu_157_p2;
-reg   [3:0] ap_NS_fsm;
+wire    regslice_both_meta_out_V_data_V_U_apdone_blk;
+reg    ap_block_state5;
+reg   [4:0] ap_NS_fsm;
 reg    ap_block_state1;
 reg    ap_ST_fsm_state1_blk;
 wire    ap_ST_fsm_state2_blk;
 reg    ap_ST_fsm_state3_blk;
 reg    ap_ST_fsm_state4_blk;
+reg    ap_ST_fsm_state5_blk;
 wire    regslice_both_rx_V_data_V_U_apdone_blk;
 wire   [7:0] rx_TDATA_int_regslice;
 wire    rx_TVALID_int_regslice;
@@ -184,6 +194,19 @@ wire    regslice_both_csi_out_V_last_V_U_apdone_blk;
 reg   [0:0] csi_out_TLAST_int_regslice;
 wire    regslice_both_csi_out_V_last_V_U_ack_in_dummy;
 wire    regslice_both_csi_out_V_last_V_U_vld_out;
+wire   [63:0] meta_out_TDATA_int_regslice;
+reg    meta_out_TVALID_int_regslice;
+wire    meta_out_TREADY_int_regslice;
+wire    regslice_both_meta_out_V_data_V_U_vld_out;
+wire    regslice_both_meta_out_V_keep_V_U_apdone_blk;
+wire    regslice_both_meta_out_V_keep_V_U_ack_in_dummy;
+wire    regslice_both_meta_out_V_keep_V_U_vld_out;
+wire    regslice_both_meta_out_V_strb_V_U_apdone_blk;
+wire    regslice_both_meta_out_V_strb_V_U_ack_in_dummy;
+wire    regslice_both_meta_out_V_strb_V_U_vld_out;
+wire    regslice_both_meta_out_V_last_V_U_apdone_blk;
+wire    regslice_both_meta_out_V_last_V_U_ack_in_dummy;
+wire    regslice_both_meta_out_V_last_V_U_vld_out;
 wire    ap_ce_reg;
 
 // power-on initialization
@@ -192,42 +215,42 @@ initial begin
 #0 ap_rst_reg_1 = 1'b1;
 #0 ap_rst_n_inv = 1'b1;
 #0 ap_done_reg = 1'b0;
-#0 ap_CS_fsm = 4'd1;
-#0 grp_csi_udp_parser_Pipeline_parse_fu_111_ap_start_reg = 1'b0;
+#0 ap_CS_fsm = 5'd1;
+#0 grp_csi_udp_parser_Pipeline_parse_fu_131_ap_start_reg = 1'b0;
 end
 
-csi_udp_parser_csi_udp_parser_Pipeline_parse grp_csi_udp_parser_Pipeline_parse_fu_111(
+csi_udp_parser_csi_udp_parser_Pipeline_parse grp_csi_udp_parser_Pipeline_parse_fu_131(
     .ap_clk(ap_clk),
     .ap_rst(ap_rst_n_inv),
-    .ap_start(grp_csi_udp_parser_Pipeline_parse_fu_111_ap_start),
-    .ap_done(grp_csi_udp_parser_Pipeline_parse_fu_111_ap_done),
-    .ap_idle(grp_csi_udp_parser_Pipeline_parse_fu_111_ap_idle),
-    .ap_ready(grp_csi_udp_parser_Pipeline_parse_fu_111_ap_ready),
+    .ap_start(grp_csi_udp_parser_Pipeline_parse_fu_131_ap_start),
+    .ap_done(grp_csi_udp_parser_Pipeline_parse_fu_131_ap_done),
+    .ap_idle(grp_csi_udp_parser_Pipeline_parse_fu_131_ap_idle),
+    .ap_ready(grp_csi_udp_parser_Pipeline_parse_fu_131_ap_ready),
     .rx_TVALID(rx_TVALID_int_regslice),
-    .csi_out_TREADY(grp_csi_udp_parser_Pipeline_parse_fu_111_csi_out_TREADY),
+    .csi_out_TREADY(grp_csi_udp_parser_Pipeline_parse_fu_131_csi_out_TREADY),
     .rx_TDATA(rx_TDATA_int_regslice),
-    .rx_TREADY(grp_csi_udp_parser_Pipeline_parse_fu_111_rx_TREADY),
+    .rx_TREADY(grp_csi_udp_parser_Pipeline_parse_fu_131_rx_TREADY),
     .rx_TKEEP(rx_TKEEP_int_regslice),
     .rx_TSTRB(rx_TSTRB_int_regslice),
     .rx_TLAST(rx_TLAST_int_regslice),
-    .udp_port(udp_port_read_reg_226),
-    .csi_out_TDATA(grp_csi_udp_parser_Pipeline_parse_fu_111_csi_out_TDATA),
-    .csi_out_TVALID(grp_csi_udp_parser_Pipeline_parse_fu_111_csi_out_TVALID),
-    .csi_out_TKEEP(grp_csi_udp_parser_Pipeline_parse_fu_111_csi_out_TKEEP),
-    .csi_out_TSTRB(grp_csi_udp_parser_Pipeline_parse_fu_111_csi_out_TSTRB),
-    .csi_out_TLAST(grp_csi_udp_parser_Pipeline_parse_fu_111_csi_out_TLAST),
-    .n_sub_3_out(grp_csi_udp_parser_Pipeline_parse_fu_111_n_sub_3_out),
-    .n_sub_3_out_ap_vld(grp_csi_udp_parser_Pipeline_parse_fu_111_n_sub_3_out_ap_vld),
-    .meta_core_spatial_1_out(grp_csi_udp_parser_Pipeline_parse_fu_111_meta_core_spatial_1_out),
-    .meta_core_spatial_1_out_ap_vld(grp_csi_udp_parser_Pipeline_parse_fu_111_meta_core_spatial_1_out_ap_vld),
-    .meta_chanspec_3_out(grp_csi_udp_parser_Pipeline_parse_fu_111_meta_chanspec_3_out),
-    .meta_chanspec_3_out_ap_vld(grp_csi_udp_parser_Pipeline_parse_fu_111_meta_chanspec_3_out_ap_vld),
-    .meta_rssi_2_out(grp_csi_udp_parser_Pipeline_parse_fu_111_meta_rssi_2_out),
-    .meta_rssi_2_out_ap_vld(grp_csi_udp_parser_Pipeline_parse_fu_111_meta_rssi_2_out_ap_vld),
-    .meta_seq_3_out(grp_csi_udp_parser_Pipeline_parse_fu_111_meta_seq_3_out),
-    .meta_seq_3_out_ap_vld(grp_csi_udp_parser_Pipeline_parse_fu_111_meta_seq_3_out_ap_vld),
-    .keep_1_out(grp_csi_udp_parser_Pipeline_parse_fu_111_keep_1_out),
-    .keep_1_out_ap_vld(grp_csi_udp_parser_Pipeline_parse_fu_111_keep_1_out_ap_vld)
+    .udp_port(udp_port_read_reg_240),
+    .csi_out_TDATA(grp_csi_udp_parser_Pipeline_parse_fu_131_csi_out_TDATA),
+    .csi_out_TVALID(grp_csi_udp_parser_Pipeline_parse_fu_131_csi_out_TVALID),
+    .csi_out_TKEEP(grp_csi_udp_parser_Pipeline_parse_fu_131_csi_out_TKEEP),
+    .csi_out_TSTRB(grp_csi_udp_parser_Pipeline_parse_fu_131_csi_out_TSTRB),
+    .csi_out_TLAST(grp_csi_udp_parser_Pipeline_parse_fu_131_csi_out_TLAST),
+    .meta_rssi_out(grp_csi_udp_parser_Pipeline_parse_fu_131_meta_rssi_out),
+    .meta_rssi_out_ap_vld(grp_csi_udp_parser_Pipeline_parse_fu_131_meta_rssi_out_ap_vld),
+    .meta_seq_out(grp_csi_udp_parser_Pipeline_parse_fu_131_meta_seq_out),
+    .meta_seq_out_ap_vld(grp_csi_udp_parser_Pipeline_parse_fu_131_meta_seq_out_ap_vld),
+    .meta_core_spatial_out(grp_csi_udp_parser_Pipeline_parse_fu_131_meta_core_spatial_out),
+    .meta_core_spatial_out_ap_vld(grp_csi_udp_parser_Pipeline_parse_fu_131_meta_core_spatial_out_ap_vld),
+    .meta_chanspec_out(grp_csi_udp_parser_Pipeline_parse_fu_131_meta_chanspec_out),
+    .meta_chanspec_out_ap_vld(grp_csi_udp_parser_Pipeline_parse_fu_131_meta_chanspec_out_ap_vld),
+    .n_sub_3_out(grp_csi_udp_parser_Pipeline_parse_fu_131_n_sub_3_out),
+    .n_sub_3_out_ap_vld(grp_csi_udp_parser_Pipeline_parse_fu_131_n_sub_3_out_ap_vld),
+    .keep_1_out(grp_csi_udp_parser_Pipeline_parse_fu_131_keep_1_out),
+    .keep_1_out_ap_vld(grp_csi_udp_parser_Pipeline_parse_fu_131_keep_1_out_ap_vld)
 );
 
 csi_udp_parser_ctrl_s_axi #(
@@ -325,7 +348,7 @@ regslice_both_csi_out_V_data_V_U(
     .ap_clk(ap_clk),
     .ap_rst(ap_rst_n_inv),
     .data_in(csi_out_TDATA_int_regslice),
-    .vld_in(grp_csi_udp_parser_Pipeline_parse_fu_111_csi_out_TVALID),
+    .vld_in(grp_csi_udp_parser_Pipeline_parse_fu_131_csi_out_TVALID),
     .ack_in(csi_out_TREADY_int_regslice),
     .data_out(csi_out_TDATA),
     .vld_out(regslice_both_csi_out_V_data_V_U_vld_out),
@@ -339,7 +362,7 @@ regslice_both_csi_out_V_keep_V_U(
     .ap_clk(ap_clk),
     .ap_rst(ap_rst_n_inv),
     .data_in(csi_out_TKEEP_int_regslice),
-    .vld_in(grp_csi_udp_parser_Pipeline_parse_fu_111_csi_out_TVALID),
+    .vld_in(grp_csi_udp_parser_Pipeline_parse_fu_131_csi_out_TVALID),
     .ack_in(regslice_both_csi_out_V_keep_V_U_ack_in_dummy),
     .data_out(csi_out_TKEEP),
     .vld_out(regslice_both_csi_out_V_keep_V_U_vld_out),
@@ -353,7 +376,7 @@ regslice_both_csi_out_V_strb_V_U(
     .ap_clk(ap_clk),
     .ap_rst(ap_rst_n_inv),
     .data_in(csi_out_TSTRB_int_regslice),
-    .vld_in(grp_csi_udp_parser_Pipeline_parse_fu_111_csi_out_TVALID),
+    .vld_in(grp_csi_udp_parser_Pipeline_parse_fu_131_csi_out_TVALID),
     .ack_in(regslice_both_csi_out_V_strb_V_U_ack_in_dummy),
     .data_out(csi_out_TSTRB),
     .vld_out(regslice_both_csi_out_V_strb_V_U_vld_out),
@@ -367,12 +390,68 @@ regslice_both_csi_out_V_last_V_U(
     .ap_clk(ap_clk),
     .ap_rst(ap_rst_n_inv),
     .data_in(csi_out_TLAST_int_regslice),
-    .vld_in(grp_csi_udp_parser_Pipeline_parse_fu_111_csi_out_TVALID),
+    .vld_in(grp_csi_udp_parser_Pipeline_parse_fu_131_csi_out_TVALID),
     .ack_in(regslice_both_csi_out_V_last_V_U_ack_in_dummy),
     .data_out(csi_out_TLAST),
     .vld_out(regslice_both_csi_out_V_last_V_U_vld_out),
     .ack_out(csi_out_TREADY),
     .apdone_blk(regslice_both_csi_out_V_last_V_U_apdone_blk)
+);
+
+csi_udp_parser_regslice_both #(
+    .DataWidth( 64 ))
+regslice_both_meta_out_V_data_V_U(
+    .ap_clk(ap_clk),
+    .ap_rst(ap_rst_n_inv),
+    .data_in(meta_out_TDATA_int_regslice),
+    .vld_in(meta_out_TVALID_int_regslice),
+    .ack_in(meta_out_TREADY_int_regslice),
+    .data_out(meta_out_TDATA),
+    .vld_out(regslice_both_meta_out_V_data_V_U_vld_out),
+    .ack_out(meta_out_TREADY),
+    .apdone_blk(regslice_both_meta_out_V_data_V_U_apdone_blk)
+);
+
+csi_udp_parser_regslice_both #(
+    .DataWidth( 8 ))
+regslice_both_meta_out_V_keep_V_U(
+    .ap_clk(ap_clk),
+    .ap_rst(ap_rst_n_inv),
+    .data_in(8'd255),
+    .vld_in(meta_out_TVALID_int_regslice),
+    .ack_in(regslice_both_meta_out_V_keep_V_U_ack_in_dummy),
+    .data_out(meta_out_TKEEP),
+    .vld_out(regslice_both_meta_out_V_keep_V_U_vld_out),
+    .ack_out(meta_out_TREADY),
+    .apdone_blk(regslice_both_meta_out_V_keep_V_U_apdone_blk)
+);
+
+csi_udp_parser_regslice_both #(
+    .DataWidth( 8 ))
+regslice_both_meta_out_V_strb_V_U(
+    .ap_clk(ap_clk),
+    .ap_rst(ap_rst_n_inv),
+    .data_in(8'd255),
+    .vld_in(meta_out_TVALID_int_regslice),
+    .ack_in(regslice_both_meta_out_V_strb_V_U_ack_in_dummy),
+    .data_out(meta_out_TSTRB),
+    .vld_out(regslice_both_meta_out_V_strb_V_U_vld_out),
+    .ack_out(meta_out_TREADY),
+    .apdone_blk(regslice_both_meta_out_V_strb_V_U_apdone_blk)
+);
+
+csi_udp_parser_regslice_both #(
+    .DataWidth( 1 ))
+regslice_both_meta_out_V_last_V_U(
+    .ap_clk(ap_clk),
+    .ap_rst(ap_rst_n_inv),
+    .data_in(1'd1),
+    .vld_in(meta_out_TVALID_int_regslice),
+    .ack_in(regslice_both_meta_out_V_last_V_U_ack_in_dummy),
+    .data_out(meta_out_TLAST),
+    .vld_out(regslice_both_meta_out_V_last_V_U_vld_out),
+    .ack_out(meta_out_TREADY),
+    .apdone_blk(regslice_both_meta_out_V_last_V_U_apdone_blk)
 );
 
 always @ (posedge ap_clk) begin
@@ -389,7 +468,7 @@ always @ (posedge ap_clk) begin
     end else begin
         if ((ap_continue == 1'b1)) begin
             ap_done_reg <= 1'b0;
-        end else if (((1'b1 == ap_CS_fsm_state4) & (1'b0 == ap_block_state4))) begin
+        end else if (((1'b0 == ap_block_state5) & (1'b1 == ap_CS_fsm_state5))) begin
             ap_done_reg <= 1'b1;
         end
     end
@@ -397,12 +476,12 @@ end
 
 always @ (posedge ap_clk) begin
     if (ap_rst_n_inv == 1'b1) begin
-        grp_csi_udp_parser_Pipeline_parse_fu_111_ap_start_reg <= 1'b0;
+        grp_csi_udp_parser_Pipeline_parse_fu_131_ap_start_reg <= 1'b0;
     end else begin
         if ((1'b1 == ap_CS_fsm_state2)) begin
-            grp_csi_udp_parser_Pipeline_parse_fu_111_ap_start_reg <= 1'b1;
-        end else if ((grp_csi_udp_parser_Pipeline_parse_fu_111_ap_ready == 1'b1)) begin
-            grp_csi_udp_parser_Pipeline_parse_fu_111_ap_start_reg <= 1'b0;
+            grp_csi_udp_parser_Pipeline_parse_fu_131_ap_start_reg <= 1'b1;
+        end else if ((grp_csi_udp_parser_Pipeline_parse_fu_131_ap_ready == 1'b1)) begin
+            grp_csi_udp_parser_Pipeline_parse_fu_131_ap_start_reg <= 1'b0;
         end
     end
 end
@@ -420,17 +499,23 @@ always @ (posedge ap_clk) begin
 end
 
 always @ (posedge ap_clk) begin
-    if (((grp_csi_udp_parser_Pipeline_parse_fu_111_csi_out_TVALID == 1'b1) & (1'b1 == ap_CS_fsm_state3))) begin
-        csi_out_TDATA_reg <= grp_csi_udp_parser_Pipeline_parse_fu_111_csi_out_TDATA;
-        csi_out_TKEEP_reg <= grp_csi_udp_parser_Pipeline_parse_fu_111_csi_out_TKEEP;
-        csi_out_TLAST_reg <= grp_csi_udp_parser_Pipeline_parse_fu_111_csi_out_TLAST;
-        csi_out_TSTRB_reg <= grp_csi_udp_parser_Pipeline_parse_fu_111_csi_out_TSTRB;
+    if (((1'b0 == ap_block_state4) & (1'b1 == ap_CS_fsm_state4))) begin
+        and_ln72_reg_245 <= and_ln72_fu_183_p2;
+    end
+end
+
+always @ (posedge ap_clk) begin
+    if (((1'b1 == ap_CS_fsm_state3) & (grp_csi_udp_parser_Pipeline_parse_fu_131_csi_out_TVALID == 1'b1))) begin
+        csi_out_TDATA_reg <= grp_csi_udp_parser_Pipeline_parse_fu_131_csi_out_TDATA;
+        csi_out_TKEEP_reg <= grp_csi_udp_parser_Pipeline_parse_fu_131_csi_out_TKEEP;
+        csi_out_TLAST_reg <= grp_csi_udp_parser_Pipeline_parse_fu_131_csi_out_TLAST;
+        csi_out_TSTRB_reg <= grp_csi_udp_parser_Pipeline_parse_fu_131_csi_out_TSTRB;
     end
 end
 
 always @ (posedge ap_clk) begin
     if ((1'b1 == ap_CS_fsm_state2)) begin
-        udp_port_read_reg_226 <= udp_port;
+        udp_port_read_reg_240 <= udp_port;
     end
 end
 
@@ -445,7 +530,7 @@ end
 assign ap_ST_fsm_state2_blk = 1'b0;
 
 always @ (*) begin
-    if ((grp_csi_udp_parser_Pipeline_parse_fu_111_ap_done == 1'b0)) begin
+    if ((grp_csi_udp_parser_Pipeline_parse_fu_131_ap_done == 1'b0)) begin
         ap_ST_fsm_state3_blk = 1'b1;
     end else begin
         ap_ST_fsm_state3_blk = 1'b0;
@@ -461,7 +546,15 @@ always @ (*) begin
 end
 
 always @ (*) begin
-    if (((1'b1 == ap_CS_fsm_state4) & (1'b0 == ap_block_state4))) begin
+    if ((1'b1 == ap_block_state5)) begin
+        ap_ST_fsm_state5_blk = 1'b1;
+    end else begin
+        ap_ST_fsm_state5_blk = 1'b0;
+    end
+end
+
+always @ (*) begin
+    if (((1'b0 == ap_block_state5) & (1'b1 == ap_CS_fsm_state5))) begin
         ap_done = 1'b1;
     end else begin
         ap_done = ap_done_reg;
@@ -477,7 +570,7 @@ always @ (*) begin
 end
 
 always @ (*) begin
-    if (((1'b1 == ap_CS_fsm_state4) & (1'b0 == ap_block_state4))) begin
+    if (((1'b0 == ap_block_state5) & (1'b1 == ap_CS_fsm_state5))) begin
         ap_ready = 1'b1;
     end else begin
         ap_ready = 1'b0;
@@ -485,56 +578,56 @@ always @ (*) begin
 end
 
 always @ (*) begin
-    if (((grp_csi_udp_parser_Pipeline_parse_fu_111_csi_out_TVALID == 1'b1) & (1'b1 == ap_CS_fsm_state3))) begin
-        csi_out_TDATA_int_regslice = grp_csi_udp_parser_Pipeline_parse_fu_111_csi_out_TDATA;
+    if (((1'b1 == ap_CS_fsm_state3) & (grp_csi_udp_parser_Pipeline_parse_fu_131_csi_out_TVALID == 1'b1))) begin
+        csi_out_TDATA_int_regslice = grp_csi_udp_parser_Pipeline_parse_fu_131_csi_out_TDATA;
     end else begin
         csi_out_TDATA_int_regslice = csi_out_TDATA_reg;
     end
 end
 
 always @ (*) begin
-    if (((grp_csi_udp_parser_Pipeline_parse_fu_111_csi_out_TVALID == 1'b1) & (1'b1 == ap_CS_fsm_state3))) begin
-        csi_out_TKEEP_int_regslice = grp_csi_udp_parser_Pipeline_parse_fu_111_csi_out_TKEEP;
+    if (((1'b1 == ap_CS_fsm_state3) & (grp_csi_udp_parser_Pipeline_parse_fu_131_csi_out_TVALID == 1'b1))) begin
+        csi_out_TKEEP_int_regslice = grp_csi_udp_parser_Pipeline_parse_fu_131_csi_out_TKEEP;
     end else begin
         csi_out_TKEEP_int_regslice = csi_out_TKEEP_reg;
     end
 end
 
 always @ (*) begin
-    if (((grp_csi_udp_parser_Pipeline_parse_fu_111_csi_out_TVALID == 1'b1) & (1'b1 == ap_CS_fsm_state3))) begin
-        csi_out_TLAST_int_regslice = grp_csi_udp_parser_Pipeline_parse_fu_111_csi_out_TLAST;
+    if (((1'b1 == ap_CS_fsm_state3) & (grp_csi_udp_parser_Pipeline_parse_fu_131_csi_out_TVALID == 1'b1))) begin
+        csi_out_TLAST_int_regslice = grp_csi_udp_parser_Pipeline_parse_fu_131_csi_out_TLAST;
     end else begin
         csi_out_TLAST_int_regslice = csi_out_TLAST_reg;
     end
 end
 
 always @ (*) begin
-    if (((grp_csi_udp_parser_Pipeline_parse_fu_111_csi_out_TVALID == 1'b1) & (1'b1 == ap_CS_fsm_state3))) begin
-        csi_out_TSTRB_int_regslice = grp_csi_udp_parser_Pipeline_parse_fu_111_csi_out_TSTRB;
+    if (((1'b1 == ap_CS_fsm_state3) & (grp_csi_udp_parser_Pipeline_parse_fu_131_csi_out_TVALID == 1'b1))) begin
+        csi_out_TSTRB_int_regslice = grp_csi_udp_parser_Pipeline_parse_fu_131_csi_out_TSTRB;
     end else begin
         csi_out_TSTRB_int_regslice = csi_out_TSTRB_reg;
     end
 end
 
 always @ (*) begin
-    if (((1'd1 == and_ln72_fu_163_p2) & (1'b1 == ap_CS_fsm_state4))) begin
-        meta_out_blk_n = meta_out_full_n;
+    if ((((1'd1 == and_ln72_reg_245) & (1'b1 == ap_CS_fsm_state5)) | ((1'd1 == and_ln72_fu_183_p2) & (1'b1 == ap_CS_fsm_state4)))) begin
+        meta_out_TDATA_blk_n = meta_out_TREADY_int_regslice;
     end else begin
-        meta_out_blk_n = 1'b1;
+        meta_out_TDATA_blk_n = 1'b1;
     end
 end
 
 always @ (*) begin
-    if (((1'd1 == and_ln72_fu_163_p2) & (1'b1 == ap_CS_fsm_state4) & (1'b0 == ap_block_state4))) begin
-        meta_out_write_local = 1'b1;
+    if (((1'b0 == ap_block_state4) & (1'd1 == and_ln72_fu_183_p2) & (1'b1 == ap_CS_fsm_state4))) begin
+        meta_out_TVALID_int_regslice = 1'b1;
     end else begin
-        meta_out_write_local = 1'b0;
+        meta_out_TVALID_int_regslice = 1'b0;
     end
 end
 
 always @ (*) begin
     if ((1'b1 == ap_CS_fsm_state3)) begin
-        rx_TREADY_int_regslice = grp_csi_udp_parser_Pipeline_parse_fu_111_rx_TREADY;
+        rx_TREADY_int_regslice = grp_csi_udp_parser_Pipeline_parse_fu_131_rx_TREADY;
     end else begin
         rx_TREADY_int_regslice = 1'b0;
     end
@@ -543,7 +636,7 @@ end
 always @ (*) begin
     case (ap_CS_fsm)
         ap_ST_fsm_state1 : begin
-            if (((1'b1 == ap_CS_fsm_state1) & (1'b0 == ap_block_state1))) begin
+            if (((1'b0 == ap_block_state1) & (1'b1 == ap_CS_fsm_state1))) begin
                 ap_NS_fsm = ap_ST_fsm_state2;
             end else begin
                 ap_NS_fsm = ap_ST_fsm_state1;
@@ -553,17 +646,24 @@ always @ (*) begin
             ap_NS_fsm = ap_ST_fsm_state3;
         end
         ap_ST_fsm_state3 : begin
-            if (((grp_csi_udp_parser_Pipeline_parse_fu_111_ap_done == 1'b1) & (1'b1 == ap_CS_fsm_state3))) begin
+            if (((grp_csi_udp_parser_Pipeline_parse_fu_131_ap_done == 1'b1) & (1'b1 == ap_CS_fsm_state3))) begin
                 ap_NS_fsm = ap_ST_fsm_state4;
             end else begin
                 ap_NS_fsm = ap_ST_fsm_state3;
             end
         end
         ap_ST_fsm_state4 : begin
-            if (((1'b1 == ap_CS_fsm_state4) & (1'b0 == ap_block_state4))) begin
-                ap_NS_fsm = ap_ST_fsm_state1;
+            if (((1'b0 == ap_block_state4) & (1'b1 == ap_CS_fsm_state4))) begin
+                ap_NS_fsm = ap_ST_fsm_state5;
             end else begin
                 ap_NS_fsm = ap_ST_fsm_state4;
+            end
+        end
+        ap_ST_fsm_state5 : begin
+            if (((1'b0 == ap_block_state5) & (1'b1 == ap_CS_fsm_state5))) begin
+                ap_NS_fsm = ap_ST_fsm_state1;
+            end else begin
+                ap_NS_fsm = ap_ST_fsm_state5;
             end
         end
         default : begin
@@ -572,7 +672,7 @@ always @ (*) begin
     endcase
 end
 
-assign and_ln72_fu_163_p2 = (icmp_ln72_fu_157_p2 & grp_csi_udp_parser_Pipeline_parse_fu_111_keep_1_out);
+assign and_ln72_fu_183_p2 = (icmp_ln72_fu_177_p2 & grp_csi_udp_parser_Pipeline_parse_fu_131_keep_1_out);
 
 assign ap_CS_fsm_state1 = ap_CS_fsm[32'd0];
 
@@ -582,29 +682,33 @@ assign ap_CS_fsm_state3 = ap_CS_fsm[32'd2];
 
 assign ap_CS_fsm_state4 = ap_CS_fsm[32'd3];
 
+assign ap_CS_fsm_state5 = ap_CS_fsm[32'd4];
+
 always @ (*) begin
     ap_block_state1 = ((ap_done_reg == 1'b1) | (ap_start == 1'b0));
 end
 
 always @ (*) begin
-    ap_block_state4 = ((regslice_both_csi_out_V_data_V_U_apdone_blk == 1'b1) | ((1'd1 == and_ln72_fu_163_p2) & (meta_out_full_n == 1'b0)));
+    ap_block_state4 = ((1'd1 == and_ln72_fu_183_p2) & (meta_out_TREADY_int_regslice == 1'b0));
+end
+
+always @ (*) begin
+    ap_block_state5 = ((regslice_both_meta_out_V_data_V_U_apdone_blk == 1'b1) | (regslice_both_csi_out_V_data_V_U_apdone_blk == 1'b1) | ((1'd1 == and_ln72_reg_245) & (meta_out_TREADY_int_regslice == 1'b0)));
 end
 
 assign csi_out_TVALID = regslice_both_csi_out_V_data_V_U_vld_out;
 
-assign csi_out_TVALID_int_regslice = grp_csi_udp_parser_Pipeline_parse_fu_111_csi_out_TVALID;
+assign csi_out_TVALID_int_regslice = grp_csi_udp_parser_Pipeline_parse_fu_131_csi_out_TVALID;
 
-assign grp_csi_udp_parser_Pipeline_parse_fu_111_ap_start = grp_csi_udp_parser_Pipeline_parse_fu_111_ap_start_reg;
+assign grp_csi_udp_parser_Pipeline_parse_fu_131_ap_start = grp_csi_udp_parser_Pipeline_parse_fu_131_ap_start_reg;
 
-assign grp_csi_udp_parser_Pipeline_parse_fu_111_csi_out_TREADY = (csi_out_TREADY_int_regslice & ap_CS_fsm_state3);
+assign grp_csi_udp_parser_Pipeline_parse_fu_131_csi_out_TREADY = (csi_out_TREADY_int_regslice & ap_CS_fsm_state3);
 
-assign icmp_ln72_fu_157_p2 = ((grp_csi_udp_parser_Pipeline_parse_fu_111_n_sub_3_out != 16'd0) ? 1'b1 : 1'b0);
+assign icmp_ln72_fu_177_p2 = ((grp_csi_udp_parser_Pipeline_parse_fu_131_n_sub_3_out != 16'd0) ? 1'b1 : 1'b0);
 
-assign meta_out_din = p_0_fu_169_p7;
+assign meta_out_TDATA_int_regslice = {{{{{grp_csi_udp_parser_Pipeline_parse_fu_131_meta_core_spatial_out}, {grp_csi_udp_parser_Pipeline_parse_fu_131_meta_chanspec_out}}, {grp_csi_udp_parser_Pipeline_parse_fu_131_n_sub_3_out}}, {grp_csi_udp_parser_Pipeline_parse_fu_131_meta_rssi_out}}, {grp_csi_udp_parser_Pipeline_parse_fu_131_meta_seq_out}};
 
-assign meta_out_write = meta_out_write_local;
-
-assign p_0_fu_169_p7 = {{{{{{{{{{1'd1}, {grp_csi_udp_parser_Pipeline_parse_fu_111_meta_core_spatial_1_out}}}, {grp_csi_udp_parser_Pipeline_parse_fu_111_meta_chanspec_3_out}}}, {grp_csi_udp_parser_Pipeline_parse_fu_111_n_sub_3_out}}}, {grp_csi_udp_parser_Pipeline_parse_fu_111_meta_rssi_2_out}}}, {grp_csi_udp_parser_Pipeline_parse_fu_111_meta_seq_3_out}};
+assign meta_out_TVALID = regslice_both_meta_out_V_data_V_U_vld_out;
 
 assign rx_TREADY = regslice_both_rx_V_data_V_U_ack_in;
 

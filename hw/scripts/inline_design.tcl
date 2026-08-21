@@ -1,3 +1,23 @@
+# ---------------------------------------------------------------------------
+# inline_design.tcl - THE inline Arch-B block design, end to end.
+#
+# Sourced by project_top.tcl, which is the only other tcl in this directory.
+# Nothing here runs on source: it defines procs and exposes ONE entry point,
+#
+#     build_inline_bd
+#
+# which creates the block design and then closes out every dangling port.
+#
+# The file is in two halves:
+#   1. create_root_design + its create_hier_cell_* helpers - the captured IPI
+#      design: axi_ethernet -> rx_dwidth(32->8) -> csi_udp_parser -> ai_engine
+#      -> s2mm -> DDR on CIPS+NoC. Machine-captured with write_bd_tcl, so it is
+#      long and mechanical; treat it as generated.
+#   2. add_eth_phy - the hand-written part: the SFP0 GTY front end, the TX
+#      injection path, the CSI source mux, the metadata writer, clock-domain
+#      crossings, AXI-Lite control and the address map. Read this half.
+# ---------------------------------------------------------------------------
+
 
 ################################################################
 # This is a generated script based on design: vitis_design
@@ -540,7 +560,12 @@ proc create_root_design { parentCell } {
    CONFIG.FREQ_HZ {200321000} \
    ] $lpddr4_sma_clk2
 
-  set meta_out_0 [ create_bd_intf_port -mode Master -vlnv xilinx.com:interface:acc_fifo_write_rtl:1.0 meta_out_0 ]
+  # csi_udp_parser's meta_out was an HLS ap_fifo port; it is now a 64-bit AXIS
+  # (one packed csi_meta_t per frame) so it can be written to DDR. This stays a
+  # placeholder external port here and is re-targeted at the metadata writer by
+  # add_eth_phy (hw/scripts/inline_eth_phy.tcl).
+  set meta_out_0 [ create_bd_intf_port -mode Master -vlnv xilinx.com:interface:axis_rtl:1.0 meta_out_0 ]
+  set_property CONFIG.FREQ_HZ {312500000} $meta_out_0
 
   set s_axi_ctrl_0 [ create_bd_intf_port -mode Slave -vlnv xilinx.com:interface:aximm_rtl:1.0 s_axi_ctrl_0 ]
   set_property -dict [ list \
@@ -976,6 +1001,18 @@ proc create_root_design { parentCell } {
 
   # Create instance: ai_engine_0, and set properties
   set ai_engine_0 [ create_bd_cell -type ip -vlnv xilinx.com:ip:ai_engine:2.0 ai_engine_0 ]
+  # NOTE (PROJECT_STATE #17-#20): the datapath stall was NOT the column partition
+  # (C_START_COLUMN, tried in #18, withdrawn in #19). The real cause is that this
+  # hand-built BD never associated the AIE graph with ai_engine_0, so Vivado never
+  # ran the AIE<->PL shim solution and the graph PLIO was placed on a shim the PL
+  # AXIS ports do not drive -> S00_AXIS TREADY low -> whole chain stalls.
+  # FIX (from the v++ link's own dr.bd.tcl, aie/feature_graph/_x/link/int):
+  #   (1) HDL_ATTRIBUTE.ME_ANNOTATION {PLIO_in}/{PLIO_out} on S00_AXIS/M00_AXIS
+  #       (set on the intf pins below), and
+  #   (2) add_files libadf_motiononly.a SCOPED_TO_CELLS {ai_engine_0}
+  #       (done in project_top.tcl after the BD validates).
+  # Do NOT set C_START_COLUMN/C_NUM_COLUMN here: v++ does not, and the shim
+  # solution places the PLIO itself once the graph is associated.
   set_property -dict [list \
     CONFIG.CLK_NAMES {aclk0,} \
     CONFIG.C_EN_EXT_RST {1} \
@@ -995,6 +1032,7 @@ proc create_root_design { parentCell } {
    CONFIG.TDATA_NUM_BYTES {4} \
    CONFIG.CATEGORY {PL} \
    CONFIG.IS_REGISTERED {true} \
+   HDL_ATTRIBUTE.ME_ANNOTATION {PLIO_out} \
  ] [get_bd_intf_pins $ai_engine_0/M00_AXIS]
 
   set_property -dict [ list \
@@ -1005,6 +1043,7 @@ proc create_root_design { parentCell } {
    CONFIG.TDATA_NUM_BYTES {4} \
    CONFIG.CATEGORY {PL} \
    CONFIG.IS_REGISTERED {true} \
+   HDL_ATTRIBUTE.ME_ANNOTATION {PLIO_in} \
  ] [get_bd_intf_pins $ai_engine_0/S00_AXIS]
 
   set_property -dict [ list \
@@ -1303,11 +1342,666 @@ proc create_root_design { parentCell } {
 }
 # End of create_root_design()
 
+# ---------------------------------------------------------------------------
+# inline_eth_phy.tcl - implements add_eth_phy for build_inline_xsa.tcl (todo #5).
+#
+# inline_full_bd.tcl builds the inline Arch-B chain
+#     axi_eth_0 -> rx_dwidth(32->8) -> csi_udp_parser_0 -> ai_engine_0 -> s2mm -> DDR
+# but leaves the MAC's PHY side, its AXI-Lite control, and several datapath
+# stubs as dangling external ports, so the design can synthesise but not
+# implement. This file closes all of them.
+#
+# WHAT GETS ADDED
+#   PHY (SFP0, 1000BASE-X):  axi_eth_0 is reconfigured from GMII to 1000BaseX on
+#     an external GTY, and hw/hdl/eth_gt_phy.v supplies that GTY. axi_ethernet
+#     8.0 cannot contain its own transceiver (CONFIG.GTinEx is locked true), and
+#     it no longer exposes the bundled gt_tx_interface / gt_rx_interface that the
+#     2024.1 AMD reference design connects a gt_quad_base to - only ~30 discrete
+#     GT pins - so the PHY is a Verilog wrapper around the gtwiz_versal IP,
+#     modelled on the IP's own example design. See hw/hdl/eth_gt_phy.v,
+#     hw/ip/csi_eth_gtwiz.xci and hw/ref_axi_eth_example/.
+#
+#     Do NOT be tempted by CONFIG.USE_BOARD_FLOW: the only VCK190 board
+#     interface for this IP is typed sgmii_rtl and silently forces
+#     ENABLE_LVDS=true, which builds an LVDS PHY whose IO pblock collides with
+#     LPDDR4 (impl dies in opt_design, "[Mig 66-103] ... PBlock issue").
+#
+#   CLOCKING:  the MAC and everything on its side run in the 100 MHz domain
+#     (clk_wizard_0/clk_out2, reset proc_sys_reset_4 - previously unused). The
+#     CSI datapath stays at clk_out1_o2 (~312.5 MHz). 32-bit AXIS at 100 MHz is
+#     400 MB/s, comfortably above the 125 MB/s a 1G line needs, and it keeps the
+#     MAC off the fast clock where it would be a timing risk. rx_cdc_fifo does
+#     the 100 -> 312.5 MHz crossing BEFORE the 32->8 width conversion, because
+#     8-bit at 100 MHz would only be 100 MB/s and would under-run the line.
+#
+#   TX / RX-STATUS:  the CSI datapath is RX-only, but TX is populated anyway -
+#     from DDR, via two more instances of the packaged mm2s mover (mm2s_txd for
+#     the frame, mm2s_txc for the MAC's 5-word control packet) crossing into the
+#     MAC's clock through async FIFOs. That is what makes the design
+#     self-testable: with eth_loopback_gpio putting the PHY in near-end loopback,
+#     software can push a synthetic nexmon CSI frame and have it return through
+#     the whole real chain with no Pi and no optics. m_axis_rxs is drained by
+#     axis_sink, because an unconsumed status stream back-pressures and stalls RX.
+#     No axi_dma is instantiated: the Linux axienet driver is therefore not used,
+#     and the MAC is brought up by writing its AXI-Lite registers directly. That
+#     keeps the PS out of the CSI datapath, which is the point of Arch-B.
+#
+#   CSI SOURCE MUX:  csi_mux (axis_switch, control-register routing) selects the
+#     AIE's input between csi_udp_parser_0 (live Ethernet) and VitisRegion/s
+#     (the mm2s DDR mover). The mm2s stream was orphaned when the parser took
+#     over the AIE input; muxing it back in keeps the validated DDR->AIE->DDR
+#     golden test runnable on this same bitstream.
+#
+#   METADATA:  csi_udp_parser_0/meta_out is now a 64-bit AXIS (one packed
+#     csi_meta_t per frame - see udp_parser/csi_udp_parser.hpp). It is narrowed
+#     to 32 bits and written to DDR by s2mm_meta, a third instance of the
+#     packaged s2mm mover. Run it with size=2 and auto-restart and DDR holds the
+#     latest {seq, rssi, n_sub, chanspec, core_spatial}; rssi is element 7 of the
+#     ruview 8-feature vector, so the host needs it.
+#
+# The proc is deliberately failure-tolerant per step: every action goes through
+# `_step`, which records rather than aborts, so one Vivado run reports ALL the
+# problems instead of stopping at the first. add_eth_phy still errors out at the
+# end if anything failed, so no half-wired XSA can be written.
+# ---------------------------------------------------------------------------
+
+# --- clock / reset nets of the existing design (see inline_full_bd.tcl) ------
+# CSI datapath domain (~312.5 MHz), shared with icn_ctrl and the Vitis region.
+set ::FAST_CLK   {VitisRegion/ap_clk_bypass_m}
+set ::FAST_RSTN  {VitisRegion/ap_rst_n_bypass_m}
+# MAC / PHY control domain (100 MHz).
+set ::SLOW_CLK   {clk_wizard_0/clk_out2}
+set ::SLOW_RSTN  {proc_sys_reset_4/peripheral_aresetn}
+
+set ::ETH_ERRORS {}
+
+proc _step {desc script} {
+    if {[catch {uplevel 1 $script} err]} {
+        lappend ::ETH_ERRORS "$desc: $err"
+        puts "ETH_PHY_FAIL  $desc\n              $err"
+    } else {
+        puts "ETH_PHY_OK    $desc"
+    }
+}
+
+# Connect a set of pins into one net. The pin paths are resolved in a single
+# get_bd_pins call: connect_bd_net needs real BD objects, and routing them
+# through `eval` would flatten them to plain strings, which it rejects.
+proc _net {name args} {
+    connect_bd_net -net $name [get_bd_pins $args]
+}
+
+proc _intf {name a b} {
+    connect_bd_intf_net -intf_net $name [get_bd_intf_pins $a] [get_bd_intf_pins $b]
+}
+
+# Drop an interface/scalar port together with whatever net hangs off it.
+proc _drop_intf_port {p} {
+    set port [get_bd_intf_ports -quiet $p]
+    if {$port eq ""} { return }
+    set net [get_bd_intf_nets -quiet -of_objects $port]
+    if {$net ne ""} { delete_bd_objs $net }
+    delete_bd_objs $port
+}
+
+proc _drop_port {p} {
+    set port [get_bd_ports -quiet $p]
+    if {$port eq ""} { return }
+    set net [get_bd_nets -quiet -of_objects $port]
+    if {$net ne ""} { delete_bd_objs $net }
+    delete_bd_objs $port
+}
+
+proc _drop_intf_net {n} {
+    set net [get_bd_intf_nets -quiet $n]
+    if {$net ne ""} { delete_bd_objs $net }
+}
+
+
+proc add_eth_phy {} {
+    current_bd_instance /
+    set ::ETH_ERRORS {}
+
+    # ---------------------------------------------------------------------
+    # 1) remove the graft placeholders
+    # ---------------------------------------------------------------------
+    _step "drop placeholder interface ports" {
+        foreach p {gmii_0 mdio_0 s_axi_0 s_axis_txd_0 s_axis_txc_0 m_axis_rxs_0
+                   meta_out_0 s_0 s_axi_ctrl_0} {
+            _drop_intf_port $p
+        }
+    }
+    _step "drop placeholder scalar ports" {
+        foreach p {interrupt_0 gtx_clk_0 gmii_rx_clk_0 gmii_tx_clk_0 gmii_gtx_clk_0
+                   mdio_mdc_0 phy_rst_n_0 s_axi_lite_clk_0 s_axi_lite_resetn_0
+                   axi_rxd_arstn_0 axi_rxs_arstn_0 axi_txc_arstn_0 axi_txd_arstn_0} {
+            _drop_port $p
+        }
+    }
+    # axis_clk was tied to the fast domain by the graft; the MAC moves to 100 MHz.
+    _step "detach axi_eth_0 from the fast clock" {
+        disconnect_bd_net [get_bd_nets -of_objects [get_bd_pins axi_eth_0/axis_clk]] \
+                          [get_bd_pins axi_eth_0/axis_clk]
+    }
+
+    # ---------------------------------------------------------------------
+    # 2) MAC: GMII external PHY -> internal 1000BASE-X PCS/PMA on a GTY
+    # ---------------------------------------------------------------------
+    # NOTE: do NOT set USE_BOARD_FLOW / ETHERNET_BOARD_INTERFACE here. The only
+    # VCK190 board interface for this IP (bank105_gty2_axi_eth) is typed
+    # sgmii_rtl and silently forces ENABLE_LVDS=true, which builds an LVDS PHY
+    # whose IO pblock collides with LPDDR4 (impl dies in opt_design with
+    # "[Mig 66-103] Regeneration failed because of PBlock issue").
+    _step "reconfigure axi_eth_0 as 1000BaseX on an external GTY" {
+        set_property -dict [list \
+            CONFIG.PHYADDR      {2} \
+            CONFIG.PHY_TYPE     {1000BaseX} \
+            CONFIG.ENABLE_LVDS  {false} \
+            CONFIG.gt_type      {GTY} \
+            CONFIG.gtlocation   {X0Y3} \
+            CONFIG.gtrefclkrate {156.25} \
+        ] [get_bd_cells axi_eth_0]
+        foreach p {PHY_TYPE ENABLE_LVDS GTinEx gtlocation gtrefclkrate} {
+            puts "              axi_eth_0.$p = [get_property CONFIG.$p [get_bd_cells axi_eth_0]]"
+        }
+        if {[get_property CONFIG.ENABLE_LVDS [get_bd_cells axi_eth_0]] ne "false"} {
+            error "axi_eth_0 fell back to the LVDS PHY - impl will fail on an IO pblock clash"
+        }
+    }
+
+    # ---------------------------------------------------------------------
+    # 3) take the MAC's serial side out to the board-constrained SFP0 pins
+    # ---------------------------------------------------------------------
+    # The MAC's ref_clk is its 50 MHz DRP/PMA-timing reference (CONFIG.drpclkrate
+    # = 50.0; the IP's own example design feeds it a 50 MHz BUFG output). The
+    # platform clk_wizard_0 has no 50 MHz tap, so derive one from CIPS
+    # pl0_ref_clk - the same source clk_wizard_0 uses - rather than cascading
+    # off one of its BUFG outputs.
+    _step "generate the MAC's 50 MHz ref_clk" {
+        set cw [create_bd_cell -type ip -vlnv xilinx.com:ip:clk_wizard:1.0 eth_ref_clk_wiz]
+        set_property -dict [list \
+            CONFIG.CLKOUT_USED {true,false,false,false,false,false,false} \
+            CONFIG.CLKOUT_REQUESTED_OUT_FREQUENCY {50,100.000,100.000,100.000,100.000,100.000,100.000} \
+            CONFIG.USE_LOCKED {false} \
+            CONFIG.USE_RESET  {true} \
+            CONFIG.RESET_TYPE {ACTIVE_LOW} \
+        ] $cw
+        set cnet [get_bd_nets -of_objects [get_bd_pins CIPS_0/pl0_ref_clk]]
+        connect_bd_net -net $cnet [get_bd_pins eth_ref_clk_wiz/clk_in1]
+        set rnet [get_bd_nets -of_objects [get_bd_pins CIPS_0/pl0_resetn]]
+        connect_bd_net -net $rnet [get_bd_pins eth_ref_clk_wiz/resetn]
+    }
+
+    _step "add the GTY front end and take SFP0 out to the pins" {
+        create_bd_cell -type module -reference eth_gt_phy eth_gt_phy_0
+        foreach p {mgt_clk_p mgt_clk_n sfp_rxp sfp_rxn sfp_txp sfp_txn} {
+            make_bd_pins_external -name $p [get_bd_pins eth_gt_phy_0/$p]
+        }
+        _net eth_ref_clk eth_ref_clk_wiz/clk_out1 axi_eth_0/ref_clk eth_gt_phy_0/ref_clk
+        # freerun_clk / resetn join the 100 MHz clock and reset nets further
+        # down - proc_sys_reset_4's outputs are still unconnected at this point,
+        # so there is no net to attach to yet.
+    }
+
+    # axi_ethernet 8.0 presents the GT side as ~30 discrete pins rather than the
+    # bundled gt_tx_interface / gt_rx_interface of 7.2, so they are wired one by
+    # one. The pairing is taken from the IP's own example design - see
+    # hw/ref_axi_eth_example/eth_ex_support.v and PROJECT_STATE.md section 11.
+    _step "wire axi_eth_0 to the GTY front end" {
+        # {net name}  {eth_gt_phy pin}  {axi_eth_0 pin}
+        foreach {net phy mac} {
+            eth_gt_pma_reset        pma_reset               pma_reset
+            eth_gt_mmcm_locked      mmcm_locked             mmcm_locked
+            eth_gt_userclk          userclk                 userclk
+            eth_gt_userclk2         userclk2                userclk2
+            eth_gt_rxuserclk        rxuserclk               rxuserclk
+            eth_gt_rxuserclk2       rxuserclk2              rxuserclk2
+            eth_gt_powergood        gtpowergood             gtpowergood_in
+            eth_gt_cplllock         cplllock                cplllock_in
+            eth_gt_tx_done          gtwiz_reset_tx_done     gtwiz_reset_tx_done_in
+            eth_gt_rx_done          gtwiz_reset_rx_done     gtwiz_reset_rx_done_in
+            eth_gt_userdata_tx      gtwiz_userdata_tx       gtwiz_userdata_tx_out
+            eth_gt_userdata_rx      gtwiz_userdata_rx       gtwiz_userdata_rx_in
+            eth_gt_txctrl0          txctrl0                 txctrl0_out
+            eth_gt_txctrl1          txctrl1                 txctrl1_out
+            eth_gt_txctrl2          txctrl2                 txctrl2_out
+            eth_gt_rxctrl0          rxctrl0                 rxctrl0_in
+            eth_gt_rxctrl1          rxctrl1                 rxctrl1_in
+            eth_gt_rxctrl2          rxctrl2                 rxctrl2_in
+            eth_gt_rxctrl3          rxctrl3                 rxctrl3_in
+            eth_gt_rxclkcorcnt      rxclkcorcnt             rxclkcorcnt_in
+            eth_gt_txbufstatus      txbufstatus             txbufstatus_in
+            eth_gt_rxbufstatus      rxbufstatus             rxbufstatus_in
+            eth_gt_txpd             txpd                    txpd_out
+            eth_gt_rxpd             rxpd                    rxpd_out
+            eth_gt_txelecidle       txelecidle              txelecidle_out
+            eth_gt_txresetdone      txresetdone             txresetdone_in
+            eth_gt_rxresetdone      rxresetdone             rxresetdone_in
+            eth_gt_txpmaresetdone   txpmaresetdone          txpmaresetdone_in
+            eth_gt_rxpmaresetdone   rxpmaresetdone          rxpmaresetdone_in
+            eth_gt_rst_tx_datapath  gtwiz_reset_tx_datapath gtwiz_reset_tx_datapath_out
+            eth_gt_rst_rx_datapath  gtwiz_reset_rx_datapath gtwiz_reset_rx_datapath_out
+            eth_gt_rxpcommaalignen  rxpcommaalignen         rxpcommaalignen_out
+        } {
+            _net $net eth_gt_phy_0/$phy axi_eth_0/$mac
+        }
+        # Left dangling on purpose (the PCS does not need them fed back, and the
+        # example design leaves them open too): rx8b10ben_out, tx8b10ben_out,
+        # rxcommadeten_out, rxmcommaalignen_out, mmcm_reset_out, status_vector.
+    }
+
+    _step "tie off the MAC's PHY status inputs" {
+        # SFP loss-of-signal is not wired to the FPGA on the VCK190, so the PCS
+        # is told the optical signal is always present. (mmcm_locked comes from
+        # eth_gt_phy, which ties it high - there is no MMCM in this path.)
+        set c1 [create_bd_cell -type ip -vlnv xilinx.com:ip:xlconstant:1.1 eth_tieoff_high]
+        set_property -dict [list CONFIG.CONST_WIDTH {1} CONFIG.CONST_VAL {1}] $c1
+        _net eth_tieoff_high_dout eth_tieoff_high/dout axi_eth_0/signal_detect
+    }
+
+    # ---------------------------------------------------------------------
+    # 4) datapath: RX clock crossing, CSI source mux, metadata to DDR
+    # ---------------------------------------------------------------------
+    _step "insert the RX clock-domain-crossing FIFO" {
+        set f [create_bd_cell -type ip -vlnv xilinx.com:ip:axis_data_fifo:2.0 rx_cdc_fifo]
+        set_property -dict [list \
+            CONFIG.FIFO_DEPTH        {2048} \
+            CONFIG.IS_ACLK_ASYNC     {1} \
+            CONFIG.FIFO_MEMORY_TYPE  {block} \
+        ] $f
+        _drop_intf_net axi_eth_0_m_axis_rxd
+        _intf axi_eth_0_m_axis_rxd axi_eth_0/m_axis_rxd rx_cdc_fifo/S_AXIS
+        _intf rx_cdc_fifo_M_AXIS   rx_cdc_fifo/M_AXIS   rx_dwidth/S_AXIS
+    }
+
+    _step "add the CSI source mux (parser vs mm2s)" {
+        set sw [create_bd_cell -type ip -vlnv xilinx.com:ip:axis_switch:1.1 csi_mux]
+        set_property -dict [list \
+            CONFIG.NUM_SI       {2} \
+            CONFIG.NUM_MI       {1} \
+            CONFIG.ROUTING_MODE {1} \
+            CONFIG.DECODER_REG  {1} \
+        ] $sw
+        _drop_intf_net csi_udp_parser_0_csi_out
+        _intf csi_mux_S00_AXIS csi_udp_parser_0/csi_out csi_mux/S00_AXIS
+        _intf csi_mux_S01_AXIS VitisRegion/s            csi_mux/S01_AXIS
+        _intf csi_mux_M00_AXIS csi_mux/M00_AXIS         ai_engine_0/S00_AXIS
+    }
+
+    _step "add the metadata path to DDR" {
+        set dw [create_bd_cell -type ip -vlnv xilinx.com:ip:axis_dwidth_converter:1.1 meta_dwidth]
+        set_property CONFIG.M_TDATA_NUM_BYTES {4} $dw
+        create_bd_cell -type ip -vlnv xilinx.com:hls:s2mm:1.0 s2mm_meta
+
+        _intf meta_dwidth_S_AXIS csi_udp_parser_0/meta_out meta_dwidth/S_AXIS
+        _intf s2mm_meta_s        meta_dwidth/M_AXIS        s2mm_meta/s
+
+        set_property CONFIG.NUM_SI {3} [get_bd_cells noc_ddr4]
+        set_property -dict [list \
+            CONFIG.CONNECTIONS {MC_0 {read_bw {5} write_bw {100} read_avg_burst {4} write_avg_burst {4}}} \
+            CONFIG.NOC_PARAMS {} \
+            CONFIG.CATEGORY {pl} \
+        ] [get_bd_intf_pins noc_ddr4/S02_AXI]
+        set_property CONFIG.ASSOCIATED_BUSIF {S00_AXI:S01_AXI:S02_AXI} [get_bd_pins noc_ddr4/aclk0]
+        _intf s2mm_meta_m_axi_gmem s2mm_meta/m_axi_gmem noc_ddr4/S02_AXI
+    }
+
+    # The CSI datapath is RX-only, but a transmit path is what makes the design
+    # self-testable: with the PHY in internal loopback, software can push a
+    # synthetic nexmon CSI frame out of the MAC and have it come back through
+    # the *entire* real chain - MAC RX, parser, AIE, DDR - with no Pi and no
+    # optics. So instead of tying TX off, feed it from DDR.
+    #
+    # No new HLS is needed: the packaged mm2s mover already is a DDR->AXIS
+    # engine that raises TLAST on the last word, which is exactly a frame
+    # injector. Two instances:
+    #   mm2s_txd  the Ethernet frame itself. A nexmon CSI frame is
+    #             14+20+8+18 = 60 bytes of headers plus 4 bytes per subcarrier,
+    #             so it is always a whole number of 32-bit words and mm2s's
+    #             all-lanes-valid TKEEP is correct with no padding.
+    #   mm2s_txc  the MAC's per-frame TX control packet: 5 words (APP0..APP4,
+    #             XAXIDMA_LAST_APPWORD = 4), all zero when checksum offload is
+    #             off, which it is (CONFIG.TXCSUM = None).
+    # They run in the fast domain with the rest of the movers and cross into the
+    # MAC's 100 MHz domain through async FIFOs - the mirror of rx_cdc_fifo -
+    # which keeps noc_ddr4 single-clock.
+    _step "add the TX injection path and drain RX status" {
+        create_bd_cell -type module -reference axis_sink rxs_sink
+        _intf axi_eth_0_m_axis_rxs axi_eth_0/m_axis_rxs rxs_sink/s_axis
+
+        foreach {inst depth} {mm2s_txd 4096 mm2s_txc 64} {
+            create_bd_cell -type ip -vlnv xilinx.com:hls:mm2s:1.0 $inst
+            set f [create_bd_cell -type ip -vlnv xilinx.com:ip:axis_data_fifo:2.0 ${inst}_cdc]
+            set_property -dict [list \
+                CONFIG.FIFO_DEPTH       $depth \
+                CONFIG.IS_ACLK_ASYNC    {1} \
+                CONFIG.FIFO_MEMORY_TYPE {block} \
+            ] $f
+            _intf ${inst}_s $inst/s ${inst}_cdc/S_AXIS
+        }
+        _intf axi_eth_0_s_axis_txd mm2s_txd_cdc/M_AXIS axi_eth_0/s_axis_txd
+        _intf axi_eth_0_s_axis_txc mm2s_txc_cdc/M_AXIS axi_eth_0/s_axis_txc
+
+        # two more NoC slave ports for the injectors' DDR reads
+        set_property CONFIG.NUM_SI {5} [get_bd_cells noc_ddr4]
+        foreach si {S03_AXI S04_AXI} {
+            set_property -dict [list \
+                CONFIG.CONNECTIONS {MC_0 {read_bw {100} write_bw {5} read_avg_burst {4} write_avg_burst {4}}} \
+                CONFIG.NOC_PARAMS {} \
+                CONFIG.CATEGORY {pl} \
+            ] [get_bd_intf_pins noc_ddr4/$si]
+        }
+        _intf mm2s_txd_m_axi_gmem mm2s_txd/m_axi_gmem noc_ddr4/S03_AXI
+        _intf mm2s_txc_m_axi_gmem mm2s_txc/m_axi_gmem noc_ddr4/S04_AXI
+        # NOTE: aclk0's ASSOCIATED_BUSIF is deliberately NOT set here - see the
+        # dedicated step near the end. Connecting an interface to a NoC slave
+        # port re-derives it and wipes whatever was set beforehand.
+    }
+
+    # A frame injector on the PARSER'S INPUT, not just on the MAC's.
+    #
+    # This exists for two reasons. It lets a captured or synthetic nexmon frame
+    # be replayed through the real parser -> AIE -> DDR chain from DDR, with no
+    # Pi, no optics and no MAC involved - which is the only way to test the CSI
+    # ingest logic on silicon independently of Ethernet bring-up. And it is
+    # useful in its own right for replaying recorded pcaps through the inline
+    # pipeline.
+    #
+    # rx_mux selects what the parser sees:
+    #   S00 = rx_dwidth  (live, from the MAC)
+    #   S01 = mm2s_rx    (replay, from DDR)
+    _step "add the parser-input replay injector" {
+        create_bd_cell -type ip -vlnv xilinx.com:hls:mm2s:1.0 mm2s_rx
+
+        set dw [create_bd_cell -type ip -vlnv xilinx.com:ip:axis_dwidth_converter:1.1 rx_inj_dwidth]
+        set_property CONFIG.M_TDATA_NUM_BYTES {1} $dw
+
+        set sw [create_bd_cell -type ip -vlnv xilinx.com:ip:axis_switch:1.1 rx_mux]
+        set_property -dict [list \
+            CONFIG.NUM_SI       {2} \
+            CONFIG.NUM_MI       {1} \
+            CONFIG.ROUTING_MODE {1} \
+            CONFIG.DECODER_REG  {1} \
+        ] $sw
+
+        # re-route the parser input through the mux
+        _drop_intf_net rx_dwidth_M_AXIS
+        _intf rx_mux_S00_AXIS rx_dwidth/M_AXIS      rx_mux/S00_AXIS
+        _intf mm2s_rx_s       mm2s_rx/s             rx_inj_dwidth/S_AXIS
+        _intf rx_mux_S01_AXIS rx_inj_dwidth/M_AXIS  rx_mux/S01_AXIS
+        _intf rx_mux_M00_AXIS rx_mux/M00_AXIS       csi_udp_parser_0/rx
+
+        # one more NoC slave port for the replay mover's DDR reads
+        set_property CONFIG.NUM_SI {6} [get_bd_cells noc_ddr4]
+        set_property -dict [list \
+            CONFIG.CONNECTIONS {MC_0 {read_bw {100} write_bw {5} read_avg_burst {4} write_avg_burst {4}}} \
+            CONFIG.NOC_PARAMS {} \
+            CONFIG.CATEGORY {pl} \
+        ] [get_bd_intf_pins noc_ddr4/S05_AXI]
+        _intf mm2s_rx_m_axi_gmem mm2s_rx/m_axi_gmem noc_ddr4/S05_AXI
+    }
+
+    # Loopback depth has to be selectable at run time to be useful as a test:
+    # near-end PMA closes the loop inside the transceiver (no optics needed),
+    # while 000 is the normal path once a Pi is plugged in.
+    _step "add the GT loopback control register" {
+        set g [create_bd_cell -type ip -vlnv xilinx.com:ip:axi_gpio:2.0 eth_loopback_gpio]
+        set_property -dict [list \
+            CONFIG.C_GPIO_WIDTH    {3} \
+            CONFIG.C_ALL_OUTPUTS   {1} \
+            CONFIG.C_IS_DUAL       {1} \
+            CONFIG.C_GPIO2_WIDTH   {32} \
+            CONFIG.C_ALL_INPUTS_2  {1} \
+            CONFIG.C_DOUT_DEFAULT  {0x00000000} \
+        ] $g
+        _net eth_gt_loopback eth_loopback_gpio/gpio_io_o eth_gt_phy_0/loopback
+        # channel 2 is read-only status from the PHY (GPIO2_DATA at +0x08)
+        _net eth_gt_status eth_gt_phy_0/status eth_loopback_gpio/gpio2_io_i
+    }
+
+    # ---------------------------------------------------------------------
+    # 5) AXI-Lite control: four new masters off icn_ctrl
+    #      M07 -> slow_ctrl_smc -> axi_eth_0/s_axi  (100 MHz domain)
+    #      M08 -> csi_udp_parser_0/s_axi_ctrl
+    #      M09 -> s2mm_meta/s_axi_control
+    #      M10 -> csi_mux/S_AXI_CTRL
+    #      M11 -> mm2s_txd/s_axi_control
+    #      M12 -> mm2s_txc/s_axi_control
+    #      M13 -> eth_loopback_gpio/S_AXI
+    #      M14 -> mm2s_rx/s_axi_control
+    #      M15 -> rx_mux/S_AXI_CTRL
+    # ---------------------------------------------------------------------
+    _step "widen icn_ctrl and expose the new masters" {
+        set_property CONFIG.NUM_MI {16} [get_bd_cells axi_smc_vip_hier/icn_ctrl]
+        foreach m {M07 M08 M09 M10 M11 M12 M13 M14 M15} {
+            create_bd_intf_pin -mode Master -vlnv xilinx.com:interface:aximm_rtl:1.0 \
+                axi_smc_vip_hier/${m}_AXI
+            _intf icn_ctrl_${m}_AXI axi_smc_vip_hier/icn_ctrl/${m}_AXI \
+                                    axi_smc_vip_hier/${m}_AXI
+        }
+    }
+
+    _step "add the 312.5 -> 100 MHz control bridge" {
+        set smc [create_bd_cell -type ip -vlnv xilinx.com:ip:smartconnect:1.0 slow_ctrl_smc]
+        set_property -dict [list CONFIG.NUM_SI {1} CONFIG.NUM_MI {1} CONFIG.NUM_CLKS {2}] $smc
+        _intf slow_ctrl_smc_S00_AXI axi_smc_vip_hier/M07_AXI slow_ctrl_smc/S00_AXI
+        _intf axi_eth_0_s_axi       slow_ctrl_smc/M00_AXI    axi_eth_0/s_axi
+        # aclk1's ASSOCIATED_BUSIF is read-only on smartconnect: it is derived
+        # from whichever clock the MI port's peer is on, so simply wiring aclk1
+        # to the 100 MHz net (below) is what puts M00 in the slow domain.
+    }
+
+    _step "connect the remaining control masters" {
+        _intf csi_udp_parser_0_s_axi_ctrl axi_smc_vip_hier/M08_AXI csi_udp_parser_0/s_axi_ctrl
+        _intf s2mm_meta_s_axi_control     axi_smc_vip_hier/M09_AXI s2mm_meta/s_axi_control
+        _intf csi_mux_S_AXI_CTRL          axi_smc_vip_hier/M10_AXI csi_mux/S_AXI_CTRL
+        _intf mm2s_txd_s_axi_control      axi_smc_vip_hier/M11_AXI mm2s_txd/s_axi_control
+        _intf mm2s_txc_s_axi_control      axi_smc_vip_hier/M12_AXI mm2s_txc/s_axi_control
+        _intf eth_loopback_gpio_S_AXI     axi_smc_vip_hier/M13_AXI eth_loopback_gpio/S_AXI
+        _intf mm2s_rx_s_axi_control       axi_smc_vip_hier/M14_AXI mm2s_rx/s_axi_control
+        _intf rx_mux_S_AXI_CTRL           axi_smc_vip_hier/M15_AXI rx_mux/S_AXI_CTRL
+    }
+
+    # ---------------------------------------------------------------------
+    # 6) clocks and resets for everything added above
+    # ---------------------------------------------------------------------
+    _step "attach the 100 MHz MAC/PHY clock" {
+        set net [get_bd_nets -of_objects [get_bd_pins $::SLOW_CLK]]
+        connect_bd_net -net $net [get_bd_pins $::SLOW_CLK] \
+            [get_bd_pins axi_eth_0/s_axi_lite_clk] \
+            [get_bd_pins axi_eth_0/axis_clk] \
+            [get_bd_pins slow_ctrl_smc/aclk1] \
+            [get_bd_pins eth_gt_phy_0/freerun_clk] \
+            [get_bd_pins rx_cdc_fifo/s_axis_aclk] \
+            [get_bd_pins mm2s_txd_cdc/m_axis_aclk] \
+            [get_bd_pins mm2s_txc_cdc/m_axis_aclk] \
+            [get_bd_pins rxs_sink/aclk]
+    }
+
+    _step "attach the 100 MHz MAC/PHY reset" {
+        connect_bd_net -net eth_slow_aresetn [get_bd_pins $::SLOW_RSTN] \
+            [get_bd_pins axi_eth_0/s_axi_lite_resetn] \
+            [get_bd_pins axi_eth_0/axi_rxd_arstn] \
+            [get_bd_pins axi_eth_0/axi_rxs_arstn] \
+            [get_bd_pins axi_eth_0/axi_txc_arstn] \
+            [get_bd_pins axi_eth_0/axi_txd_arstn] \
+            [get_bd_pins eth_gt_phy_0/resetn] \
+            [get_bd_pins rx_cdc_fifo/s_axis_aresetn] \
+            [get_bd_pins rxs_sink/aresetn]
+    }
+
+
+    _step "attach the fast datapath clock" {
+        set net [get_bd_nets -of_objects [get_bd_pins $::FAST_CLK]]
+        connect_bd_net -net $net [get_bd_pins $::FAST_CLK] \
+            [get_bd_pins rx_cdc_fifo/m_axis_aclk] \
+            [get_bd_pins mm2s_txd/ap_clk] \
+            [get_bd_pins mm2s_txc/ap_clk] \
+            [get_bd_pins mm2s_txd_cdc/s_axis_aclk] \
+            [get_bd_pins mm2s_txc_cdc/s_axis_aclk] \
+            [get_bd_pins eth_loopback_gpio/s_axi_aclk] \
+            [get_bd_pins mm2s_rx/ap_clk] \
+            [get_bd_pins rx_inj_dwidth/aclk] \
+            [get_bd_pins rx_mux/aclk] \
+            [get_bd_pins rx_mux/s_axi_ctrl_aclk] \
+            [get_bd_pins csi_mux/aclk] \
+            [get_bd_pins csi_mux/s_axi_ctrl_aclk] \
+            [get_bd_pins meta_dwidth/aclk] \
+            [get_bd_pins s2mm_meta/ap_clk]
+    }
+
+    # axis_data_fifo in async mode has only s_axis_aresetn - the master side is
+    # reset from the slave side internally - so there is no m_axis_aresetn here.
+    _step "attach the fast datapath reset" {
+        set net [get_bd_nets -of_objects [get_bd_pins $::FAST_RSTN]]
+        connect_bd_net -net $net [get_bd_pins $::FAST_RSTN] \
+            [get_bd_pins mm2s_txd/ap_rst_n] \
+            [get_bd_pins mm2s_txc/ap_rst_n] \
+            [get_bd_pins mm2s_txd_cdc/s_axis_aresetn] \
+            [get_bd_pins mm2s_txc_cdc/s_axis_aresetn] \
+            [get_bd_pins eth_loopback_gpio/s_axi_aresetn] \
+            [get_bd_pins mm2s_rx/ap_rst_n] \
+            [get_bd_pins rx_inj_dwidth/aresetn] \
+            [get_bd_pins rx_mux/aresetn] \
+            [get_bd_pins rx_mux/s_axi_ctrl_aresetn] \
+            [get_bd_pins csi_mux/aresetn] \
+            [get_bd_pins csi_mux/s_axi_ctrl_aresetn] \
+            [get_bd_pins meta_dwidth/aresetn] \
+            [get_bd_pins s2mm_meta/ap_rst_n]
+    }
+
+    # -----------------------------------------------------------------------
+    # Debug: see TVALID/TREADY on the replay path directly.
+    #
+    # Bring-up is stuck on a stall that every register-level probe can only
+    # infer: the HLS movers latch ap_start and clear ap_idle (so their clock and
+    # reset are demonstrably live) but never reach ap_done, and no data arrives.
+    # Registers cannot distinguish "producer never asserts TVALID" from
+    # "consumer never asserts TREADY", and those have completely different
+    # fixes. One capture settles it, so probe both ends of the injector path:
+    #
+    #   SLOT_0 = mm2s_rx -> rx_inj_dwidth   does the mover produce at all?
+    #   SLOT_1 = rx_mux  -> parser          does the parser accept?
+    #
+    # Set INLINE_ILA=0 in the environment to build without it once the answer
+    # is known - it is debug scaffolding, not part of the design.
+    # Mark the nets and let Vivado's debug automation insert the core. Do NOT
+    # hand-instantiate system_ila here: it is a 7-series/UltraScale core and
+    # Vivado rejects it on this part outright -
+    #   ERROR: [BD 5-683] VLNV <xilinx.com:ip:system_ila:1.1> is not supported
+    #                     for the current part
+    # Versal wants axis_ila instead, but its ports are generated rather than
+    # declared in component.xml, so the slot/clock pin names cannot be relied
+    # on from the outside. The automation rule picks the part-correct core and
+    # wires its clock for us, which is both shorter and version-proof.
+    if {![info exists ::env(INLINE_ILA)] || $::env(INLINE_ILA) ne "0"} {
+        _step "mark the replay path for debug and insert an ILA" {
+            # The dict key is AXIS_ILA, not SYSTEM_ILA: on Versal the debug rule
+            # dispatches to get_axis_ila, which looks up that key and dies with
+            # `key "AXIS_ILA" not known in dictionary` if it is missing.
+            set opts [list AXIS_SIGNALS {Data and Trigger} \
+                           CLK_SRC $::FAST_CLK \
+                           AXIS_ILA {Auto} APC_EN {0}]
+            foreach n {mm2s_rx_s rx_mux_M00_AXIS} {
+                set_property HDL_ATTRIBUTE.DEBUG true [get_bd_intf_nets $n]
+            }
+            apply_bd_automation -rule xilinx.com:bd_rule:debug -dict [list \
+                [get_bd_intf_nets mm2s_rx_s]       $opts \
+                [get_bd_intf_nets rx_mux_M00_AXIS] $opts \
+            ]
+        }
+    }
+
+    _step "clock/reset the control bridge from the fast domain" {
+        set cnet [get_bd_nets -of_objects [get_bd_pins axi_smc_vip_hier/aclk]]
+        set rnet [get_bd_nets -of_objects [get_bd_pins axi_smc_vip_hier/aresetn]]
+        connect_bd_net -net $cnet [get_bd_pins slow_ctrl_smc/aclk]
+        connect_bd_net -net $rnet [get_bd_pins slow_ctrl_smc/aresetn]
+    }
+
+    # ---------------------------------------------------------------------
+    # 7) addresses
+    # ---------------------------------------------------------------------
+    # This has to happen AFTER every NoC slave interface is connected. Setting it
+    # earlier looks like it works - get_property reads back the right thing - but
+    # connecting an interface to a NoC slave port re-derives the association and
+    # silently blanks it, and the built design ends up with an EMPTY
+    # ASSOCIATED_BUSIF. The NoC then does not know which clock drives S02..S04,
+    # and those ports are dead in hardware: mm2s_txd hung on a single-word DDR
+    # read while mm2s on S00 completed. Nothing in the build flags it, so the
+    # value is asserted below.
+    _step "associate the NoC slave ports with aclk0" {
+        set want {S00_AXI:S01_AXI:S02_AXI:S03_AXI:S04_AXI:S05_AXI}
+        set_property CONFIG.ASSOCIATED_BUSIF $want [get_bd_pins noc_ddr4/aclk0]
+        set got [get_property CONFIG.ASSOCIATED_BUSIF [get_bd_pins noc_ddr4/aclk0]]
+        if {$got ne $want} {
+            error "noc_ddr4/aclk0 ASSOCIATED_BUSIF is '$got', expected '$want'"
+        }
+        puts "              noc_ddr4/aclk0 ASSOCIATED_BUSIF = $got"
+    }
+
+    # PIN these. Bare assign_bd_address hands out offsets in whatever order it
+    # walks the design, so adding a single IP silently renumbers everything -
+    # adding the TX injectors moved s2mm_meta 0xA403->0xA407 and csi_mux
+    # 0xA406->0xA40C, which would have quietly broken sw/csi_ctl.c and
+    # live/inline_reader.py. Software depends on this map; it is documented in
+    # PROJECT_STATE.md section 12. Only add to the end of the list.
+    _step "assign addresses for the new slaves" {
+        foreach {seg off rng} {
+            csi_udp_parser_0/s_axi_ctrl/Reg 0xA4020000 0x10000
+            s2mm_meta/s_axi_control/Reg     0xA4030000 0x10000
+            csi_mux/S_AXI_CTRL/Reg          0xA4060000 0x10000
+            axi_eth_0/s_axi/Reg0            0xA4080000 0x40000
+            mm2s_txd/s_axi_control/Reg      0xA40C0000 0x10000
+            mm2s_txc/s_axi_control/Reg      0xA40D0000 0x10000
+            eth_loopback_gpio/S_AXI/Reg     0xA40E0000 0x10000
+            mm2s_rx/s_axi_control/Reg       0xA4070000 0x10000
+            rx_mux/S_AXI_CTRL/Reg           0xA40F0000 0x10000
+        } {
+            assign_bd_address -offset $off -range $rng \
+                -target_address_space [get_bd_addr_spaces CIPS_0/M_AXI_FPD] \
+                [get_bd_addr_segs $seg] -force
+        }
+        # the movers' DDR views can be auto-assigned; they all just see DDR
+        assign_bd_address
+        # ...and prove the pinned offsets are all actually occupied. Checked by
+        # offset rather than by segment name: SEG_mm2s_* is ambiguous now that
+        # there are three mm2s instances.
+        set seen {}
+        foreach seg [get_bd_addr_segs -of_objects [get_bd_addr_spaces CIPS_0/M_AXI_FPD]] {
+            lappend seen [format 0x%08x [get_property OFFSET $seg]]
+        }
+        foreach off {0xa4020000 0xa4030000 0xa4060000 0xa4080000
+                     0xa40c0000 0xa40d0000 0xa40e0000 0xa4070000 0xa40f0000} {
+            if {[lsearch -exact $seen $off] < 0} {
+                error "pinned address $off is not in the M_AXI_FPD map: $seen"
+            }
+        }
+        puts "---- inline address map ----"
+        foreach sp [get_bd_addr_spaces] {
+            foreach seg [get_bd_addr_segs -of_objects $sp] {
+                puts [format "  %-40s %-14s %s" $sp \
+                        [get_property OFFSET $seg] [get_property NAME $seg]]
+            }
+        }
+        puts "---- end address map ----"
+    }
+
+    if {[llength $::ETH_ERRORS]} {
+        puts "\nadd_eth_phy: [llength $::ETH_ERRORS] step(s) failed:"
+        foreach e $::ETH_ERRORS { puts "  - $e" }
+        return -code error "add_eth_phy: [llength $::ETH_ERRORS] step(s) failed (see above)"
+    }
+    puts "add_eth_phy: all steps OK"
+}
+
 
 ##################################################################
-# MAIN FLOW
+# ENTRY POINT
 ##################################################################
-
-create_root_design ""
-
-
+# Build the block design and close it out. project_top.tcl calls this and then
+# validates, wraps, and runs synthesis/implementation.
+proc build_inline_bd {} {
+    create_root_design ""
+    add_eth_phy
+}

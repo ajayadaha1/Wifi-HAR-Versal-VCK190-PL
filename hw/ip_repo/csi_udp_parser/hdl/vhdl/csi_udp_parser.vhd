@@ -27,9 +27,12 @@ port (
     csi_out_TKEEP : OUT STD_LOGIC_VECTOR (3 downto 0);
     csi_out_TSTRB : OUT STD_LOGIC_VECTOR (3 downto 0);
     csi_out_TLAST : OUT STD_LOGIC_VECTOR (0 downto 0);
-    meta_out_din : OUT STD_LOGIC_VECTOR (64 downto 0);
-    meta_out_full_n : IN STD_LOGIC;
-    meta_out_write : OUT STD_LOGIC;
+    meta_out_TDATA : OUT STD_LOGIC_VECTOR (63 downto 0);
+    meta_out_TVALID : OUT STD_LOGIC;
+    meta_out_TREADY : IN STD_LOGIC;
+    meta_out_TKEEP : OUT STD_LOGIC_VECTOR (7 downto 0);
+    meta_out_TSTRB : OUT STD_LOGIC_VECTOR (7 downto 0);
+    meta_out_TLAST : OUT STD_LOGIC_VECTOR (0 downto 0);
     s_axi_ctrl_AWVALID : IN STD_LOGIC;
     s_axi_ctrl_AWREADY : OUT STD_LOGIC;
     s_axi_ctrl_AWADDR : IN STD_LOGIC_VECTOR (C_S_AXI_CTRL_ADDR_WIDTH-1 downto 0);
@@ -56,21 +59,24 @@ architecture behav of csi_udp_parser is
     attribute DowngradeIPIdentifiedWarnings of behav : architecture is "yes";
     attribute CORE_GENERATION_INFO : STRING;
     attribute CORE_GENERATION_INFO of behav : architecture is
-    "csi_udp_parser_csi_udp_parser,hls_ip_2025_2,{HLS_INPUT_TYPE=cxx,HLS_INPUT_FLOAT=0,HLS_INPUT_FIXED=0,HLS_INPUT_PART=xcvc1902-vsva2197-2MP-e-S,HLS_INPUT_CLOCK=8.000000,HLS_INPUT_ARCH=others,HLS_SYN_CLOCK=2.271000,HLS_SYN_LAT=-1,HLS_SYN_TPT=none,HLS_SYN_MEM=0,HLS_SYN_DSP=0,HLS_SYN_FF=306,HLS_SYN_LUT=429,HLS_VERSION=2025_2}";
+    "csi_udp_parser_csi_udp_parser,hls_ip_2025_2,{HLS_INPUT_TYPE=cxx,HLS_INPUT_FLOAT=0,HLS_INPUT_FIXED=0,HLS_INPUT_PART=xcvc1902-vsva2197-2MP-e-S,HLS_INPUT_CLOCK=8.000000,HLS_INPUT_ARCH=others,HLS_SYN_CLOCK=2.271000,HLS_SYN_LAT=-1,HLS_SYN_TPT=none,HLS_SYN_MEM=0,HLS_SYN_DSP=0,HLS_SYN_FF=308,HLS_SYN_LUT=431,HLS_VERSION=2025_2}";
     constant ap_const_logic_1 : STD_LOGIC := '1';
     constant ap_const_logic_0 : STD_LOGIC := '0';
-    constant ap_ST_fsm_state1 : STD_LOGIC_VECTOR (3 downto 0) := "0001";
-    constant ap_ST_fsm_state2 : STD_LOGIC_VECTOR (3 downto 0) := "0010";
-    constant ap_ST_fsm_state3 : STD_LOGIC_VECTOR (3 downto 0) := "0100";
-    constant ap_ST_fsm_state4 : STD_LOGIC_VECTOR (3 downto 0) := "1000";
+    constant ap_ST_fsm_state1 : STD_LOGIC_VECTOR (4 downto 0) := "00001";
+    constant ap_ST_fsm_state2 : STD_LOGIC_VECTOR (4 downto 0) := "00010";
+    constant ap_ST_fsm_state3 : STD_LOGIC_VECTOR (4 downto 0) := "00100";
+    constant ap_ST_fsm_state4 : STD_LOGIC_VECTOR (4 downto 0) := "01000";
+    constant ap_ST_fsm_state5 : STD_LOGIC_VECTOR (4 downto 0) := "10000";
     constant ap_const_lv32_0 : STD_LOGIC_VECTOR (31 downto 0) := "00000000000000000000000000000000";
     constant ap_const_boolean_1 : BOOLEAN := true;
     constant ap_const_lv32_3 : STD_LOGIC_VECTOR (31 downto 0) := "00000000000000000000000000000011";
     constant ap_const_lv1_1 : STD_LOGIC_VECTOR (0 downto 0) := "1";
+    constant ap_const_lv32_4 : STD_LOGIC_VECTOR (31 downto 0) := "00000000000000000000000000000100";
     constant ap_const_lv32_1 : STD_LOGIC_VECTOR (31 downto 0) := "00000000000000000000000000000001";
+    constant ap_const_boolean_0 : BOOLEAN := false;
     constant C_S_AXI_DATA_WIDTH : INTEGER := 32;
     constant ap_const_lv32_2 : STD_LOGIC_VECTOR (31 downto 0) := "00000000000000000000000000000010";
-    constant ap_const_boolean_0 : BOOLEAN := false;
+    constant ap_const_lv8_FF : STD_LOGIC_VECTOR (7 downto 0) := "11111111";
     constant ap_const_lv16_0 : STD_LOGIC_VECTOR (15 downto 0) := "0000000000000000";
 
 attribute shreg_extract : string;
@@ -85,61 +91,65 @@ attribute shreg_extract of ap_rst_n_inv : signal is "no";
     signal ap_continue : STD_LOGIC;
     signal ap_done_reg : STD_LOGIC := '0';
     signal ap_idle : STD_LOGIC;
-    signal ap_CS_fsm : STD_LOGIC_VECTOR (3 downto 0) := "0001";
+    signal ap_CS_fsm : STD_LOGIC_VECTOR (4 downto 0) := "00001";
     attribute fsm_encoding : string;
     attribute fsm_encoding of ap_CS_fsm : signal is "none";
     signal ap_CS_fsm_state1 : STD_LOGIC;
     attribute fsm_encoding of ap_CS_fsm_state1 : signal is "none";
     signal ap_ready : STD_LOGIC;
     signal udp_port : STD_LOGIC_VECTOR (15 downto 0);
-    signal meta_out_blk_n : STD_LOGIC;
+    signal meta_out_TDATA_blk_n : STD_LOGIC;
     signal ap_CS_fsm_state4 : STD_LOGIC;
     attribute fsm_encoding of ap_CS_fsm_state4 : signal is "none";
-    signal and_ln72_fu_163_p2 : STD_LOGIC_VECTOR (0 downto 0);
-    signal udp_port_read_reg_226 : STD_LOGIC_VECTOR (15 downto 0);
+    signal and_ln72_fu_183_p2 : STD_LOGIC_VECTOR (0 downto 0);
+    signal ap_CS_fsm_state5 : STD_LOGIC;
+    attribute fsm_encoding of ap_CS_fsm_state5 : signal is "none";
+    signal and_ln72_reg_245 : STD_LOGIC_VECTOR (0 downto 0);
+    signal udp_port_read_reg_240 : STD_LOGIC_VECTOR (15 downto 0);
     signal ap_CS_fsm_state2 : STD_LOGIC;
     attribute fsm_encoding of ap_CS_fsm_state2 : signal is "none";
-    signal grp_csi_udp_parser_Pipeline_parse_fu_111_ap_start : STD_LOGIC;
-    signal grp_csi_udp_parser_Pipeline_parse_fu_111_ap_done : STD_LOGIC;
-    signal grp_csi_udp_parser_Pipeline_parse_fu_111_ap_idle : STD_LOGIC;
-    signal grp_csi_udp_parser_Pipeline_parse_fu_111_ap_ready : STD_LOGIC;
-    signal grp_csi_udp_parser_Pipeline_parse_fu_111_csi_out_TREADY : STD_LOGIC;
-    signal grp_csi_udp_parser_Pipeline_parse_fu_111_rx_TREADY : STD_LOGIC;
-    signal grp_csi_udp_parser_Pipeline_parse_fu_111_csi_out_TDATA : STD_LOGIC_VECTOR (31 downto 0);
-    signal grp_csi_udp_parser_Pipeline_parse_fu_111_csi_out_TVALID : STD_LOGIC;
-    signal grp_csi_udp_parser_Pipeline_parse_fu_111_csi_out_TKEEP : STD_LOGIC_VECTOR (3 downto 0);
-    signal grp_csi_udp_parser_Pipeline_parse_fu_111_csi_out_TSTRB : STD_LOGIC_VECTOR (3 downto 0);
-    signal grp_csi_udp_parser_Pipeline_parse_fu_111_csi_out_TLAST : STD_LOGIC_VECTOR (0 downto 0);
-    signal grp_csi_udp_parser_Pipeline_parse_fu_111_n_sub_3_out : STD_LOGIC_VECTOR (15 downto 0);
-    signal grp_csi_udp_parser_Pipeline_parse_fu_111_n_sub_3_out_ap_vld : STD_LOGIC;
-    signal grp_csi_udp_parser_Pipeline_parse_fu_111_meta_core_spatial_1_out : STD_LOGIC_VECTOR (7 downto 0);
-    signal grp_csi_udp_parser_Pipeline_parse_fu_111_meta_core_spatial_1_out_ap_vld : STD_LOGIC;
-    signal grp_csi_udp_parser_Pipeline_parse_fu_111_meta_chanspec_3_out : STD_LOGIC_VECTOR (15 downto 0);
-    signal grp_csi_udp_parser_Pipeline_parse_fu_111_meta_chanspec_3_out_ap_vld : STD_LOGIC;
-    signal grp_csi_udp_parser_Pipeline_parse_fu_111_meta_rssi_2_out : STD_LOGIC_VECTOR (7 downto 0);
-    signal grp_csi_udp_parser_Pipeline_parse_fu_111_meta_rssi_2_out_ap_vld : STD_LOGIC;
-    signal grp_csi_udp_parser_Pipeline_parse_fu_111_meta_seq_3_out : STD_LOGIC_VECTOR (15 downto 0);
-    signal grp_csi_udp_parser_Pipeline_parse_fu_111_meta_seq_3_out_ap_vld : STD_LOGIC;
-    signal grp_csi_udp_parser_Pipeline_parse_fu_111_keep_1_out : STD_LOGIC_VECTOR (0 downto 0);
-    signal grp_csi_udp_parser_Pipeline_parse_fu_111_keep_1_out_ap_vld : STD_LOGIC;
-    signal grp_csi_udp_parser_Pipeline_parse_fu_111_ap_start_reg : STD_LOGIC := '0';
+    signal ap_block_state4 : BOOLEAN;
+    signal grp_csi_udp_parser_Pipeline_parse_fu_131_ap_start : STD_LOGIC;
+    signal grp_csi_udp_parser_Pipeline_parse_fu_131_ap_done : STD_LOGIC;
+    signal grp_csi_udp_parser_Pipeline_parse_fu_131_ap_idle : STD_LOGIC;
+    signal grp_csi_udp_parser_Pipeline_parse_fu_131_ap_ready : STD_LOGIC;
+    signal grp_csi_udp_parser_Pipeline_parse_fu_131_csi_out_TREADY : STD_LOGIC;
+    signal grp_csi_udp_parser_Pipeline_parse_fu_131_rx_TREADY : STD_LOGIC;
+    signal grp_csi_udp_parser_Pipeline_parse_fu_131_csi_out_TDATA : STD_LOGIC_VECTOR (31 downto 0);
+    signal grp_csi_udp_parser_Pipeline_parse_fu_131_csi_out_TVALID : STD_LOGIC;
+    signal grp_csi_udp_parser_Pipeline_parse_fu_131_csi_out_TKEEP : STD_LOGIC_VECTOR (3 downto 0);
+    signal grp_csi_udp_parser_Pipeline_parse_fu_131_csi_out_TSTRB : STD_LOGIC_VECTOR (3 downto 0);
+    signal grp_csi_udp_parser_Pipeline_parse_fu_131_csi_out_TLAST : STD_LOGIC_VECTOR (0 downto 0);
+    signal grp_csi_udp_parser_Pipeline_parse_fu_131_meta_rssi_out : STD_LOGIC_VECTOR (7 downto 0);
+    signal grp_csi_udp_parser_Pipeline_parse_fu_131_meta_rssi_out_ap_vld : STD_LOGIC;
+    signal grp_csi_udp_parser_Pipeline_parse_fu_131_meta_seq_out : STD_LOGIC_VECTOR (15 downto 0);
+    signal grp_csi_udp_parser_Pipeline_parse_fu_131_meta_seq_out_ap_vld : STD_LOGIC;
+    signal grp_csi_udp_parser_Pipeline_parse_fu_131_meta_core_spatial_out : STD_LOGIC_VECTOR (7 downto 0);
+    signal grp_csi_udp_parser_Pipeline_parse_fu_131_meta_core_spatial_out_ap_vld : STD_LOGIC;
+    signal grp_csi_udp_parser_Pipeline_parse_fu_131_meta_chanspec_out : STD_LOGIC_VECTOR (15 downto 0);
+    signal grp_csi_udp_parser_Pipeline_parse_fu_131_meta_chanspec_out_ap_vld : STD_LOGIC;
+    signal grp_csi_udp_parser_Pipeline_parse_fu_131_n_sub_3_out : STD_LOGIC_VECTOR (15 downto 0);
+    signal grp_csi_udp_parser_Pipeline_parse_fu_131_n_sub_3_out_ap_vld : STD_LOGIC;
+    signal grp_csi_udp_parser_Pipeline_parse_fu_131_keep_1_out : STD_LOGIC_VECTOR (0 downto 0);
+    signal grp_csi_udp_parser_Pipeline_parse_fu_131_keep_1_out_ap_vld : STD_LOGIC;
+    signal grp_csi_udp_parser_Pipeline_parse_fu_131_ap_start_reg : STD_LOGIC := '0';
     signal ap_CS_fsm_state3 : STD_LOGIC;
     attribute fsm_encoding of ap_CS_fsm_state3 : signal is "none";
     signal csi_out_TDATA_reg : STD_LOGIC_VECTOR (31 downto 0);
     signal csi_out_TKEEP_reg : STD_LOGIC_VECTOR (3 downto 0);
     signal csi_out_TSTRB_reg : STD_LOGIC_VECTOR (3 downto 0);
     signal csi_out_TLAST_reg : STD_LOGIC_VECTOR (0 downto 0);
-    signal p_0_fu_169_p7 : STD_LOGIC_VECTOR (64 downto 0);
+    signal icmp_ln72_fu_177_p2 : STD_LOGIC_VECTOR (0 downto 0);
     signal regslice_both_csi_out_V_data_V_U_apdone_blk : STD_LOGIC;
-    signal ap_block_state4 : BOOLEAN;
-    signal meta_out_write_local : STD_LOGIC;
-    signal icmp_ln72_fu_157_p2 : STD_LOGIC_VECTOR (0 downto 0);
-    signal ap_NS_fsm : STD_LOGIC_VECTOR (3 downto 0);
+    signal regslice_both_meta_out_V_data_V_U_apdone_blk : STD_LOGIC;
+    signal ap_block_state5 : BOOLEAN;
+    signal ap_NS_fsm : STD_LOGIC_VECTOR (4 downto 0);
     signal ap_block_state1 : BOOLEAN;
     signal ap_ST_fsm_state1_blk : STD_LOGIC;
     signal ap_ST_fsm_state2_blk : STD_LOGIC;
     signal ap_ST_fsm_state3_blk : STD_LOGIC;
     signal ap_ST_fsm_state4_blk : STD_LOGIC;
+    signal ap_ST_fsm_state5_blk : STD_LOGIC;
     signal regslice_both_rx_V_data_V_U_apdone_blk : STD_LOGIC;
     signal rx_TDATA_int_regslice : STD_LOGIC_VECTOR (7 downto 0);
     signal rx_TVALID_int_regslice : STD_LOGIC;
@@ -173,6 +183,19 @@ attribute shreg_extract of ap_rst_n_inv : signal is "no";
     signal csi_out_TLAST_int_regslice : STD_LOGIC_VECTOR (0 downto 0);
     signal regslice_both_csi_out_V_last_V_U_ack_in_dummy : STD_LOGIC;
     signal regslice_both_csi_out_V_last_V_U_vld_out : STD_LOGIC;
+    signal meta_out_TDATA_int_regslice : STD_LOGIC_VECTOR (63 downto 0);
+    signal meta_out_TVALID_int_regslice : STD_LOGIC;
+    signal meta_out_TREADY_int_regslice : STD_LOGIC;
+    signal regslice_both_meta_out_V_data_V_U_vld_out : STD_LOGIC;
+    signal regslice_both_meta_out_V_keep_V_U_apdone_blk : STD_LOGIC;
+    signal regslice_both_meta_out_V_keep_V_U_ack_in_dummy : STD_LOGIC;
+    signal regslice_both_meta_out_V_keep_V_U_vld_out : STD_LOGIC;
+    signal regslice_both_meta_out_V_strb_V_U_apdone_blk : STD_LOGIC;
+    signal regslice_both_meta_out_V_strb_V_U_ack_in_dummy : STD_LOGIC;
+    signal regslice_both_meta_out_V_strb_V_U_vld_out : STD_LOGIC;
+    signal regslice_both_meta_out_V_last_V_U_apdone_blk : STD_LOGIC;
+    signal regslice_both_meta_out_V_last_V_U_ack_in_dummy : STD_LOGIC;
+    signal regslice_both_meta_out_V_last_V_U_vld_out : STD_LOGIC;
     signal ap_ce_reg : STD_LOGIC;
 
     component csi_udp_parser_csi_udp_parser_Pipeline_parse IS
@@ -196,16 +219,16 @@ attribute shreg_extract of ap_rst_n_inv : signal is "no";
         csi_out_TKEEP : OUT STD_LOGIC_VECTOR (3 downto 0);
         csi_out_TSTRB : OUT STD_LOGIC_VECTOR (3 downto 0);
         csi_out_TLAST : OUT STD_LOGIC_VECTOR (0 downto 0);
+        meta_rssi_out : OUT STD_LOGIC_VECTOR (7 downto 0);
+        meta_rssi_out_ap_vld : OUT STD_LOGIC;
+        meta_seq_out : OUT STD_LOGIC_VECTOR (15 downto 0);
+        meta_seq_out_ap_vld : OUT STD_LOGIC;
+        meta_core_spatial_out : OUT STD_LOGIC_VECTOR (7 downto 0);
+        meta_core_spatial_out_ap_vld : OUT STD_LOGIC;
+        meta_chanspec_out : OUT STD_LOGIC_VECTOR (15 downto 0);
+        meta_chanspec_out_ap_vld : OUT STD_LOGIC;
         n_sub_3_out : OUT STD_LOGIC_VECTOR (15 downto 0);
         n_sub_3_out_ap_vld : OUT STD_LOGIC;
-        meta_core_spatial_1_out : OUT STD_LOGIC_VECTOR (7 downto 0);
-        meta_core_spatial_1_out_ap_vld : OUT STD_LOGIC;
-        meta_chanspec_3_out : OUT STD_LOGIC_VECTOR (15 downto 0);
-        meta_chanspec_3_out_ap_vld : OUT STD_LOGIC;
-        meta_rssi_2_out : OUT STD_LOGIC_VECTOR (7 downto 0);
-        meta_rssi_2_out_ap_vld : OUT STD_LOGIC;
-        meta_seq_3_out : OUT STD_LOGIC_VECTOR (15 downto 0);
-        meta_seq_3_out_ap_vld : OUT STD_LOGIC;
         keep_1_out : OUT STD_LOGIC_VECTOR (0 downto 0);
         keep_1_out_ap_vld : OUT STD_LOGIC );
     end component;
@@ -264,39 +287,39 @@ attribute shreg_extract of ap_rst_n_inv : signal is "no";
 
 
 begin
-    grp_csi_udp_parser_Pipeline_parse_fu_111 : component csi_udp_parser_csi_udp_parser_Pipeline_parse
+    grp_csi_udp_parser_Pipeline_parse_fu_131 : component csi_udp_parser_csi_udp_parser_Pipeline_parse
     port map (
         ap_clk => ap_clk,
         ap_rst => ap_rst_n_inv,
-        ap_start => grp_csi_udp_parser_Pipeline_parse_fu_111_ap_start,
-        ap_done => grp_csi_udp_parser_Pipeline_parse_fu_111_ap_done,
-        ap_idle => grp_csi_udp_parser_Pipeline_parse_fu_111_ap_idle,
-        ap_ready => grp_csi_udp_parser_Pipeline_parse_fu_111_ap_ready,
+        ap_start => grp_csi_udp_parser_Pipeline_parse_fu_131_ap_start,
+        ap_done => grp_csi_udp_parser_Pipeline_parse_fu_131_ap_done,
+        ap_idle => grp_csi_udp_parser_Pipeline_parse_fu_131_ap_idle,
+        ap_ready => grp_csi_udp_parser_Pipeline_parse_fu_131_ap_ready,
         rx_TVALID => rx_TVALID_int_regslice,
-        csi_out_TREADY => grp_csi_udp_parser_Pipeline_parse_fu_111_csi_out_TREADY,
+        csi_out_TREADY => grp_csi_udp_parser_Pipeline_parse_fu_131_csi_out_TREADY,
         rx_TDATA => rx_TDATA_int_regslice,
-        rx_TREADY => grp_csi_udp_parser_Pipeline_parse_fu_111_rx_TREADY,
+        rx_TREADY => grp_csi_udp_parser_Pipeline_parse_fu_131_rx_TREADY,
         rx_TKEEP => rx_TKEEP_int_regslice,
         rx_TSTRB => rx_TSTRB_int_regslice,
         rx_TLAST => rx_TLAST_int_regslice,
-        udp_port => udp_port_read_reg_226,
-        csi_out_TDATA => grp_csi_udp_parser_Pipeline_parse_fu_111_csi_out_TDATA,
-        csi_out_TVALID => grp_csi_udp_parser_Pipeline_parse_fu_111_csi_out_TVALID,
-        csi_out_TKEEP => grp_csi_udp_parser_Pipeline_parse_fu_111_csi_out_TKEEP,
-        csi_out_TSTRB => grp_csi_udp_parser_Pipeline_parse_fu_111_csi_out_TSTRB,
-        csi_out_TLAST => grp_csi_udp_parser_Pipeline_parse_fu_111_csi_out_TLAST,
-        n_sub_3_out => grp_csi_udp_parser_Pipeline_parse_fu_111_n_sub_3_out,
-        n_sub_3_out_ap_vld => grp_csi_udp_parser_Pipeline_parse_fu_111_n_sub_3_out_ap_vld,
-        meta_core_spatial_1_out => grp_csi_udp_parser_Pipeline_parse_fu_111_meta_core_spatial_1_out,
-        meta_core_spatial_1_out_ap_vld => grp_csi_udp_parser_Pipeline_parse_fu_111_meta_core_spatial_1_out_ap_vld,
-        meta_chanspec_3_out => grp_csi_udp_parser_Pipeline_parse_fu_111_meta_chanspec_3_out,
-        meta_chanspec_3_out_ap_vld => grp_csi_udp_parser_Pipeline_parse_fu_111_meta_chanspec_3_out_ap_vld,
-        meta_rssi_2_out => grp_csi_udp_parser_Pipeline_parse_fu_111_meta_rssi_2_out,
-        meta_rssi_2_out_ap_vld => grp_csi_udp_parser_Pipeline_parse_fu_111_meta_rssi_2_out_ap_vld,
-        meta_seq_3_out => grp_csi_udp_parser_Pipeline_parse_fu_111_meta_seq_3_out,
-        meta_seq_3_out_ap_vld => grp_csi_udp_parser_Pipeline_parse_fu_111_meta_seq_3_out_ap_vld,
-        keep_1_out => grp_csi_udp_parser_Pipeline_parse_fu_111_keep_1_out,
-        keep_1_out_ap_vld => grp_csi_udp_parser_Pipeline_parse_fu_111_keep_1_out_ap_vld);
+        udp_port => udp_port_read_reg_240,
+        csi_out_TDATA => grp_csi_udp_parser_Pipeline_parse_fu_131_csi_out_TDATA,
+        csi_out_TVALID => grp_csi_udp_parser_Pipeline_parse_fu_131_csi_out_TVALID,
+        csi_out_TKEEP => grp_csi_udp_parser_Pipeline_parse_fu_131_csi_out_TKEEP,
+        csi_out_TSTRB => grp_csi_udp_parser_Pipeline_parse_fu_131_csi_out_TSTRB,
+        csi_out_TLAST => grp_csi_udp_parser_Pipeline_parse_fu_131_csi_out_TLAST,
+        meta_rssi_out => grp_csi_udp_parser_Pipeline_parse_fu_131_meta_rssi_out,
+        meta_rssi_out_ap_vld => grp_csi_udp_parser_Pipeline_parse_fu_131_meta_rssi_out_ap_vld,
+        meta_seq_out => grp_csi_udp_parser_Pipeline_parse_fu_131_meta_seq_out,
+        meta_seq_out_ap_vld => grp_csi_udp_parser_Pipeline_parse_fu_131_meta_seq_out_ap_vld,
+        meta_core_spatial_out => grp_csi_udp_parser_Pipeline_parse_fu_131_meta_core_spatial_out,
+        meta_core_spatial_out_ap_vld => grp_csi_udp_parser_Pipeline_parse_fu_131_meta_core_spatial_out_ap_vld,
+        meta_chanspec_out => grp_csi_udp_parser_Pipeline_parse_fu_131_meta_chanspec_out,
+        meta_chanspec_out_ap_vld => grp_csi_udp_parser_Pipeline_parse_fu_131_meta_chanspec_out_ap_vld,
+        n_sub_3_out => grp_csi_udp_parser_Pipeline_parse_fu_131_n_sub_3_out,
+        n_sub_3_out_ap_vld => grp_csi_udp_parser_Pipeline_parse_fu_131_n_sub_3_out_ap_vld,
+        keep_1_out => grp_csi_udp_parser_Pipeline_parse_fu_131_keep_1_out,
+        keep_1_out_ap_vld => grp_csi_udp_parser_Pipeline_parse_fu_131_keep_1_out_ap_vld);
 
     ctrl_s_axi_U : component csi_udp_parser_ctrl_s_axi
     generic map (
@@ -394,7 +417,7 @@ begin
         ap_clk => ap_clk,
         ap_rst => ap_rst_n_inv,
         data_in => csi_out_TDATA_int_regslice,
-        vld_in => grp_csi_udp_parser_Pipeline_parse_fu_111_csi_out_TVALID,
+        vld_in => grp_csi_udp_parser_Pipeline_parse_fu_131_csi_out_TVALID,
         ack_in => csi_out_TREADY_int_regslice,
         data_out => csi_out_TDATA,
         vld_out => regslice_both_csi_out_V_data_V_U_vld_out,
@@ -408,7 +431,7 @@ begin
         ap_clk => ap_clk,
         ap_rst => ap_rst_n_inv,
         data_in => csi_out_TKEEP_int_regslice,
-        vld_in => grp_csi_udp_parser_Pipeline_parse_fu_111_csi_out_TVALID,
+        vld_in => grp_csi_udp_parser_Pipeline_parse_fu_131_csi_out_TVALID,
         ack_in => regslice_both_csi_out_V_keep_V_U_ack_in_dummy,
         data_out => csi_out_TKEEP,
         vld_out => regslice_both_csi_out_V_keep_V_U_vld_out,
@@ -422,7 +445,7 @@ begin
         ap_clk => ap_clk,
         ap_rst => ap_rst_n_inv,
         data_in => csi_out_TSTRB_int_regslice,
-        vld_in => grp_csi_udp_parser_Pipeline_parse_fu_111_csi_out_TVALID,
+        vld_in => grp_csi_udp_parser_Pipeline_parse_fu_131_csi_out_TVALID,
         ack_in => regslice_both_csi_out_V_strb_V_U_ack_in_dummy,
         data_out => csi_out_TSTRB,
         vld_out => regslice_both_csi_out_V_strb_V_U_vld_out,
@@ -436,12 +459,68 @@ begin
         ap_clk => ap_clk,
         ap_rst => ap_rst_n_inv,
         data_in => csi_out_TLAST_int_regslice,
-        vld_in => grp_csi_udp_parser_Pipeline_parse_fu_111_csi_out_TVALID,
+        vld_in => grp_csi_udp_parser_Pipeline_parse_fu_131_csi_out_TVALID,
         ack_in => regslice_both_csi_out_V_last_V_U_ack_in_dummy,
         data_out => csi_out_TLAST,
         vld_out => regslice_both_csi_out_V_last_V_U_vld_out,
         ack_out => csi_out_TREADY,
         apdone_blk => regslice_both_csi_out_V_last_V_U_apdone_blk);
+
+    regslice_both_meta_out_V_data_V_U : component csi_udp_parser_regslice_both
+    generic map (
+        DataWidth => 64)
+    port map (
+        ap_clk => ap_clk,
+        ap_rst => ap_rst_n_inv,
+        data_in => meta_out_TDATA_int_regslice,
+        vld_in => meta_out_TVALID_int_regslice,
+        ack_in => meta_out_TREADY_int_regslice,
+        data_out => meta_out_TDATA,
+        vld_out => regslice_both_meta_out_V_data_V_U_vld_out,
+        ack_out => meta_out_TREADY,
+        apdone_blk => regslice_both_meta_out_V_data_V_U_apdone_blk);
+
+    regslice_both_meta_out_V_keep_V_U : component csi_udp_parser_regslice_both
+    generic map (
+        DataWidth => 8)
+    port map (
+        ap_clk => ap_clk,
+        ap_rst => ap_rst_n_inv,
+        data_in => ap_const_lv8_FF,
+        vld_in => meta_out_TVALID_int_regslice,
+        ack_in => regslice_both_meta_out_V_keep_V_U_ack_in_dummy,
+        data_out => meta_out_TKEEP,
+        vld_out => regslice_both_meta_out_V_keep_V_U_vld_out,
+        ack_out => meta_out_TREADY,
+        apdone_blk => regslice_both_meta_out_V_keep_V_U_apdone_blk);
+
+    regslice_both_meta_out_V_strb_V_U : component csi_udp_parser_regslice_both
+    generic map (
+        DataWidth => 8)
+    port map (
+        ap_clk => ap_clk,
+        ap_rst => ap_rst_n_inv,
+        data_in => ap_const_lv8_FF,
+        vld_in => meta_out_TVALID_int_regslice,
+        ack_in => regslice_both_meta_out_V_strb_V_U_ack_in_dummy,
+        data_out => meta_out_TSTRB,
+        vld_out => regslice_both_meta_out_V_strb_V_U_vld_out,
+        ack_out => meta_out_TREADY,
+        apdone_blk => regslice_both_meta_out_V_strb_V_U_apdone_blk);
+
+    regslice_both_meta_out_V_last_V_U : component csi_udp_parser_regslice_both
+    generic map (
+        DataWidth => 1)
+    port map (
+        ap_clk => ap_clk,
+        ap_rst => ap_rst_n_inv,
+        data_in => ap_const_lv1_1,
+        vld_in => meta_out_TVALID_int_regslice,
+        ack_in => regslice_both_meta_out_V_last_V_U_ack_in_dummy,
+        data_out => meta_out_TLAST,
+        vld_out => regslice_both_meta_out_V_last_V_U_vld_out,
+        ack_out => meta_out_TREADY,
+        apdone_blk => regslice_both_meta_out_V_last_V_U_apdone_blk);
 
 
 
@@ -467,7 +546,7 @@ begin
             else
                 if ((ap_continue = ap_const_logic_1)) then 
                     ap_done_reg <= ap_const_logic_0;
-                elsif (((ap_const_logic_1 = ap_CS_fsm_state4) and (ap_const_boolean_0 = ap_block_state4))) then 
+                elsif (((ap_const_boolean_0 = ap_block_state5) and (ap_const_logic_1 = ap_CS_fsm_state5))) then 
                     ap_done_reg <= ap_const_logic_1;
                 end if; 
             end if;
@@ -475,16 +554,16 @@ begin
     end process;
 
 
-    grp_csi_udp_parser_Pipeline_parse_fu_111_ap_start_reg_assign_proc : process(ap_clk)
+    grp_csi_udp_parser_Pipeline_parse_fu_131_ap_start_reg_assign_proc : process(ap_clk)
     begin
         if (ap_clk'event and ap_clk =  '1') then
             if (ap_rst_n_inv = '1') then
-                grp_csi_udp_parser_Pipeline_parse_fu_111_ap_start_reg <= ap_const_logic_0;
+                grp_csi_udp_parser_Pipeline_parse_fu_131_ap_start_reg <= ap_const_logic_0;
             else
                 if ((ap_const_logic_1 = ap_CS_fsm_state2)) then 
-                    grp_csi_udp_parser_Pipeline_parse_fu_111_ap_start_reg <= ap_const_logic_1;
-                elsif ((grp_csi_udp_parser_Pipeline_parse_fu_111_ap_ready = ap_const_logic_1)) then 
-                    grp_csi_udp_parser_Pipeline_parse_fu_111_ap_start_reg <= ap_const_logic_0;
+                    grp_csi_udp_parser_Pipeline_parse_fu_131_ap_start_reg <= ap_const_logic_1;
+                elsif ((grp_csi_udp_parser_Pipeline_parse_fu_131_ap_ready = ap_const_logic_1)) then 
+                    grp_csi_udp_parser_Pipeline_parse_fu_131_ap_start_reg <= ap_const_logic_0;
                 end if; 
             end if;
         end if;
@@ -514,11 +593,19 @@ begin
     process (ap_clk)
     begin
         if (ap_clk'event and ap_clk = '1') then
-            if (((grp_csi_udp_parser_Pipeline_parse_fu_111_csi_out_TVALID = ap_const_logic_1) and (ap_const_logic_1 = ap_CS_fsm_state3))) then
-                csi_out_TDATA_reg <= grp_csi_udp_parser_Pipeline_parse_fu_111_csi_out_TDATA;
-                csi_out_TKEEP_reg <= grp_csi_udp_parser_Pipeline_parse_fu_111_csi_out_TKEEP;
-                csi_out_TLAST_reg <= grp_csi_udp_parser_Pipeline_parse_fu_111_csi_out_TLAST;
-                csi_out_TSTRB_reg <= grp_csi_udp_parser_Pipeline_parse_fu_111_csi_out_TSTRB;
+            if (((ap_const_boolean_0 = ap_block_state4) and (ap_const_logic_1 = ap_CS_fsm_state4))) then
+                and_ln72_reg_245 <= and_ln72_fu_183_p2;
+            end if;
+        end if;
+    end process;
+    process (ap_clk)
+    begin
+        if (ap_clk'event and ap_clk = '1') then
+            if (((ap_const_logic_1 = ap_CS_fsm_state3) and (grp_csi_udp_parser_Pipeline_parse_fu_131_csi_out_TVALID = ap_const_logic_1))) then
+                csi_out_TDATA_reg <= grp_csi_udp_parser_Pipeline_parse_fu_131_csi_out_TDATA;
+                csi_out_TKEEP_reg <= grp_csi_udp_parser_Pipeline_parse_fu_131_csi_out_TKEEP;
+                csi_out_TLAST_reg <= grp_csi_udp_parser_Pipeline_parse_fu_131_csi_out_TLAST;
+                csi_out_TSTRB_reg <= grp_csi_udp_parser_Pipeline_parse_fu_131_csi_out_TSTRB;
             end if;
         end if;
     end process;
@@ -526,16 +613,16 @@ begin
     begin
         if (ap_clk'event and ap_clk = '1') then
             if ((ap_const_logic_1 = ap_CS_fsm_state2)) then
-                udp_port_read_reg_226 <= udp_port;
+                udp_port_read_reg_240 <= udp_port;
             end if;
         end if;
     end process;
 
-    ap_NS_fsm_assign_proc : process (ap_CS_fsm, ap_CS_fsm_state1, ap_CS_fsm_state4, grp_csi_udp_parser_Pipeline_parse_fu_111_ap_done, ap_CS_fsm_state3, ap_block_state4, ap_block_state1)
+    ap_NS_fsm_assign_proc : process (ap_CS_fsm, ap_CS_fsm_state1, ap_CS_fsm_state4, ap_CS_fsm_state5, ap_block_state4, grp_csi_udp_parser_Pipeline_parse_fu_131_ap_done, ap_CS_fsm_state3, ap_block_state5, ap_block_state1)
     begin
         case ap_CS_fsm is
             when ap_ST_fsm_state1 => 
-                if (((ap_const_logic_1 = ap_CS_fsm_state1) and (ap_const_boolean_0 = ap_block_state1))) then
+                if (((ap_const_boolean_0 = ap_block_state1) and (ap_const_logic_1 = ap_CS_fsm_state1))) then
                     ap_NS_fsm <= ap_ST_fsm_state2;
                 else
                     ap_NS_fsm <= ap_ST_fsm_state1;
@@ -543,26 +630,33 @@ begin
             when ap_ST_fsm_state2 => 
                 ap_NS_fsm <= ap_ST_fsm_state3;
             when ap_ST_fsm_state3 => 
-                if (((grp_csi_udp_parser_Pipeline_parse_fu_111_ap_done = ap_const_logic_1) and (ap_const_logic_1 = ap_CS_fsm_state3))) then
+                if (((grp_csi_udp_parser_Pipeline_parse_fu_131_ap_done = ap_const_logic_1) and (ap_const_logic_1 = ap_CS_fsm_state3))) then
                     ap_NS_fsm <= ap_ST_fsm_state4;
                 else
                     ap_NS_fsm <= ap_ST_fsm_state3;
                 end if;
             when ap_ST_fsm_state4 => 
-                if (((ap_const_logic_1 = ap_CS_fsm_state4) and (ap_const_boolean_0 = ap_block_state4))) then
-                    ap_NS_fsm <= ap_ST_fsm_state1;
+                if (((ap_const_boolean_0 = ap_block_state4) and (ap_const_logic_1 = ap_CS_fsm_state4))) then
+                    ap_NS_fsm <= ap_ST_fsm_state5;
                 else
                     ap_NS_fsm <= ap_ST_fsm_state4;
                 end if;
+            when ap_ST_fsm_state5 => 
+                if (((ap_const_boolean_0 = ap_block_state5) and (ap_const_logic_1 = ap_CS_fsm_state5))) then
+                    ap_NS_fsm <= ap_ST_fsm_state1;
+                else
+                    ap_NS_fsm <= ap_ST_fsm_state5;
+                end if;
             when others =>  
-                ap_NS_fsm <= "XXXX";
+                ap_NS_fsm <= "XXXXX";
         end case;
     end process;
-    and_ln72_fu_163_p2 <= (icmp_ln72_fu_157_p2 and grp_csi_udp_parser_Pipeline_parse_fu_111_keep_1_out);
+    and_ln72_fu_183_p2 <= (icmp_ln72_fu_177_p2 and grp_csi_udp_parser_Pipeline_parse_fu_131_keep_1_out);
     ap_CS_fsm_state1 <= ap_CS_fsm(0);
     ap_CS_fsm_state2 <= ap_CS_fsm(1);
     ap_CS_fsm_state3 <= ap_CS_fsm(2);
     ap_CS_fsm_state4 <= ap_CS_fsm(3);
+    ap_CS_fsm_state5 <= ap_CS_fsm(4);
 
     ap_ST_fsm_state1_blk_assign_proc : process(ap_block_state1)
     begin
@@ -575,9 +669,9 @@ begin
 
     ap_ST_fsm_state2_blk <= ap_const_logic_0;
 
-    ap_ST_fsm_state3_blk_assign_proc : process(grp_csi_udp_parser_Pipeline_parse_fu_111_ap_done)
+    ap_ST_fsm_state3_blk_assign_proc : process(grp_csi_udp_parser_Pipeline_parse_fu_131_ap_done)
     begin
-        if ((grp_csi_udp_parser_Pipeline_parse_fu_111_ap_done = ap_const_logic_0)) then 
+        if ((grp_csi_udp_parser_Pipeline_parse_fu_131_ap_done = ap_const_logic_0)) then 
             ap_ST_fsm_state3_blk <= ap_const_logic_1;
         else 
             ap_ST_fsm_state3_blk <= ap_const_logic_0;
@@ -595,21 +689,37 @@ begin
     end process;
 
 
+    ap_ST_fsm_state5_blk_assign_proc : process(ap_block_state5)
+    begin
+        if ((ap_const_boolean_1 = ap_block_state5)) then 
+            ap_ST_fsm_state5_blk <= ap_const_logic_1;
+        else 
+            ap_ST_fsm_state5_blk <= ap_const_logic_0;
+        end if; 
+    end process;
+
+
     ap_block_state1_assign_proc : process(ap_start, ap_done_reg)
     begin
                 ap_block_state1 <= ((ap_done_reg = ap_const_logic_1) or (ap_start = ap_const_logic_0));
     end process;
 
 
-    ap_block_state4_assign_proc : process(meta_out_full_n, and_ln72_fu_163_p2, regslice_both_csi_out_V_data_V_U_apdone_blk)
+    ap_block_state4_assign_proc : process(and_ln72_fu_183_p2, meta_out_TREADY_int_regslice)
     begin
-                ap_block_state4 <= ((regslice_both_csi_out_V_data_V_U_apdone_blk = ap_const_logic_1) or ((ap_const_lv1_1 = and_ln72_fu_163_p2) and (meta_out_full_n = ap_const_logic_0)));
+                ap_block_state4 <= ((ap_const_lv1_1 = and_ln72_fu_183_p2) and (meta_out_TREADY_int_regslice = ap_const_logic_0));
     end process;
 
 
-    ap_done_assign_proc : process(ap_done_reg, ap_CS_fsm_state4, ap_block_state4)
+    ap_block_state5_assign_proc : process(and_ln72_reg_245, regslice_both_csi_out_V_data_V_U_apdone_blk, regslice_both_meta_out_V_data_V_U_apdone_blk, meta_out_TREADY_int_regslice)
     begin
-        if (((ap_const_logic_1 = ap_CS_fsm_state4) and (ap_const_boolean_0 = ap_block_state4))) then 
+                ap_block_state5 <= ((regslice_both_meta_out_V_data_V_U_apdone_blk = ap_const_logic_1) or (regslice_both_csi_out_V_data_V_U_apdone_blk = ap_const_logic_1) or ((ap_const_lv1_1 = and_ln72_reg_245) and (meta_out_TREADY_int_regslice = ap_const_logic_0)));
+    end process;
+
+
+    ap_done_assign_proc : process(ap_done_reg, ap_CS_fsm_state5, ap_block_state5)
+    begin
+        if (((ap_const_boolean_0 = ap_block_state5) and (ap_const_logic_1 = ap_CS_fsm_state5))) then 
             ap_done <= ap_const_logic_1;
         else 
             ap_done <= ap_done_reg;
@@ -627,9 +737,9 @@ begin
     end process;
 
 
-    ap_ready_assign_proc : process(ap_CS_fsm_state4, ap_block_state4)
+    ap_ready_assign_proc : process(ap_CS_fsm_state5, ap_block_state5)
     begin
-        if (((ap_const_logic_1 = ap_CS_fsm_state4) and (ap_const_boolean_0 = ap_block_state4))) then 
+        if (((ap_const_boolean_0 = ap_block_state5) and (ap_const_logic_1 = ap_CS_fsm_state5))) then 
             ap_ready <= ap_const_logic_1;
         else 
             ap_ready <= ap_const_logic_0;
@@ -637,79 +747,78 @@ begin
     end process;
 
 
-    csi_out_TDATA_int_regslice_assign_proc : process(grp_csi_udp_parser_Pipeline_parse_fu_111_csi_out_TDATA, grp_csi_udp_parser_Pipeline_parse_fu_111_csi_out_TVALID, ap_CS_fsm_state3, csi_out_TDATA_reg)
+    csi_out_TDATA_int_regslice_assign_proc : process(grp_csi_udp_parser_Pipeline_parse_fu_131_csi_out_TDATA, grp_csi_udp_parser_Pipeline_parse_fu_131_csi_out_TVALID, ap_CS_fsm_state3, csi_out_TDATA_reg)
     begin
-        if (((grp_csi_udp_parser_Pipeline_parse_fu_111_csi_out_TVALID = ap_const_logic_1) and (ap_const_logic_1 = ap_CS_fsm_state3))) then 
-            csi_out_TDATA_int_regslice <= grp_csi_udp_parser_Pipeline_parse_fu_111_csi_out_TDATA;
+        if (((ap_const_logic_1 = ap_CS_fsm_state3) and (grp_csi_udp_parser_Pipeline_parse_fu_131_csi_out_TVALID = ap_const_logic_1))) then 
+            csi_out_TDATA_int_regslice <= grp_csi_udp_parser_Pipeline_parse_fu_131_csi_out_TDATA;
         else 
             csi_out_TDATA_int_regslice <= csi_out_TDATA_reg;
         end if; 
     end process;
 
 
-    csi_out_TKEEP_int_regslice_assign_proc : process(grp_csi_udp_parser_Pipeline_parse_fu_111_csi_out_TVALID, grp_csi_udp_parser_Pipeline_parse_fu_111_csi_out_TKEEP, ap_CS_fsm_state3, csi_out_TKEEP_reg)
+    csi_out_TKEEP_int_regslice_assign_proc : process(grp_csi_udp_parser_Pipeline_parse_fu_131_csi_out_TVALID, grp_csi_udp_parser_Pipeline_parse_fu_131_csi_out_TKEEP, ap_CS_fsm_state3, csi_out_TKEEP_reg)
     begin
-        if (((grp_csi_udp_parser_Pipeline_parse_fu_111_csi_out_TVALID = ap_const_logic_1) and (ap_const_logic_1 = ap_CS_fsm_state3))) then 
-            csi_out_TKEEP_int_regslice <= grp_csi_udp_parser_Pipeline_parse_fu_111_csi_out_TKEEP;
+        if (((ap_const_logic_1 = ap_CS_fsm_state3) and (grp_csi_udp_parser_Pipeline_parse_fu_131_csi_out_TVALID = ap_const_logic_1))) then 
+            csi_out_TKEEP_int_regslice <= grp_csi_udp_parser_Pipeline_parse_fu_131_csi_out_TKEEP;
         else 
             csi_out_TKEEP_int_regslice <= csi_out_TKEEP_reg;
         end if; 
     end process;
 
 
-    csi_out_TLAST_int_regslice_assign_proc : process(grp_csi_udp_parser_Pipeline_parse_fu_111_csi_out_TVALID, grp_csi_udp_parser_Pipeline_parse_fu_111_csi_out_TLAST, ap_CS_fsm_state3, csi_out_TLAST_reg)
+    csi_out_TLAST_int_regslice_assign_proc : process(grp_csi_udp_parser_Pipeline_parse_fu_131_csi_out_TVALID, grp_csi_udp_parser_Pipeline_parse_fu_131_csi_out_TLAST, ap_CS_fsm_state3, csi_out_TLAST_reg)
     begin
-        if (((grp_csi_udp_parser_Pipeline_parse_fu_111_csi_out_TVALID = ap_const_logic_1) and (ap_const_logic_1 = ap_CS_fsm_state3))) then 
-            csi_out_TLAST_int_regslice <= grp_csi_udp_parser_Pipeline_parse_fu_111_csi_out_TLAST;
+        if (((ap_const_logic_1 = ap_CS_fsm_state3) and (grp_csi_udp_parser_Pipeline_parse_fu_131_csi_out_TVALID = ap_const_logic_1))) then 
+            csi_out_TLAST_int_regslice <= grp_csi_udp_parser_Pipeline_parse_fu_131_csi_out_TLAST;
         else 
             csi_out_TLAST_int_regslice <= csi_out_TLAST_reg;
         end if; 
     end process;
 
 
-    csi_out_TSTRB_int_regslice_assign_proc : process(grp_csi_udp_parser_Pipeline_parse_fu_111_csi_out_TVALID, grp_csi_udp_parser_Pipeline_parse_fu_111_csi_out_TSTRB, ap_CS_fsm_state3, csi_out_TSTRB_reg)
+    csi_out_TSTRB_int_regslice_assign_proc : process(grp_csi_udp_parser_Pipeline_parse_fu_131_csi_out_TVALID, grp_csi_udp_parser_Pipeline_parse_fu_131_csi_out_TSTRB, ap_CS_fsm_state3, csi_out_TSTRB_reg)
     begin
-        if (((grp_csi_udp_parser_Pipeline_parse_fu_111_csi_out_TVALID = ap_const_logic_1) and (ap_const_logic_1 = ap_CS_fsm_state3))) then 
-            csi_out_TSTRB_int_regslice <= grp_csi_udp_parser_Pipeline_parse_fu_111_csi_out_TSTRB;
+        if (((ap_const_logic_1 = ap_CS_fsm_state3) and (grp_csi_udp_parser_Pipeline_parse_fu_131_csi_out_TVALID = ap_const_logic_1))) then 
+            csi_out_TSTRB_int_regslice <= grp_csi_udp_parser_Pipeline_parse_fu_131_csi_out_TSTRB;
         else 
             csi_out_TSTRB_int_regslice <= csi_out_TSTRB_reg;
         end if; 
     end process;
 
     csi_out_TVALID <= regslice_both_csi_out_V_data_V_U_vld_out;
-    csi_out_TVALID_int_regslice <= grp_csi_udp_parser_Pipeline_parse_fu_111_csi_out_TVALID;
-    grp_csi_udp_parser_Pipeline_parse_fu_111_ap_start <= grp_csi_udp_parser_Pipeline_parse_fu_111_ap_start_reg;
-    grp_csi_udp_parser_Pipeline_parse_fu_111_csi_out_TREADY <= (csi_out_TREADY_int_regslice and ap_CS_fsm_state3);
-    icmp_ln72_fu_157_p2 <= "0" when (grp_csi_udp_parser_Pipeline_parse_fu_111_n_sub_3_out = ap_const_lv16_0) else "1";
+    csi_out_TVALID_int_regslice <= grp_csi_udp_parser_Pipeline_parse_fu_131_csi_out_TVALID;
+    grp_csi_udp_parser_Pipeline_parse_fu_131_ap_start <= grp_csi_udp_parser_Pipeline_parse_fu_131_ap_start_reg;
+    grp_csi_udp_parser_Pipeline_parse_fu_131_csi_out_TREADY <= (csi_out_TREADY_int_regslice and ap_CS_fsm_state3);
+    icmp_ln72_fu_177_p2 <= "0" when (grp_csi_udp_parser_Pipeline_parse_fu_131_n_sub_3_out = ap_const_lv16_0) else "1";
 
-    meta_out_blk_n_assign_proc : process(meta_out_full_n, ap_CS_fsm_state4, and_ln72_fu_163_p2)
+    meta_out_TDATA_blk_n_assign_proc : process(ap_CS_fsm_state4, and_ln72_fu_183_p2, ap_CS_fsm_state5, and_ln72_reg_245, meta_out_TREADY_int_regslice)
     begin
-        if (((ap_const_lv1_1 = and_ln72_fu_163_p2) and (ap_const_logic_1 = ap_CS_fsm_state4))) then 
-            meta_out_blk_n <= meta_out_full_n;
+        if ((((ap_const_lv1_1 = and_ln72_reg_245) and (ap_const_logic_1 = ap_CS_fsm_state5)) or ((ap_const_lv1_1 = and_ln72_fu_183_p2) and (ap_const_logic_1 = ap_CS_fsm_state4)))) then 
+            meta_out_TDATA_blk_n <= meta_out_TREADY_int_regslice;
         else 
-            meta_out_blk_n <= ap_const_logic_1;
+            meta_out_TDATA_blk_n <= ap_const_logic_1;
         end if; 
     end process;
 
-    meta_out_din <= p_0_fu_169_p7;
-    meta_out_write <= meta_out_write_local;
+    meta_out_TDATA_int_regslice <= ((((grp_csi_udp_parser_Pipeline_parse_fu_131_meta_core_spatial_out & grp_csi_udp_parser_Pipeline_parse_fu_131_meta_chanspec_out) & grp_csi_udp_parser_Pipeline_parse_fu_131_n_sub_3_out) & grp_csi_udp_parser_Pipeline_parse_fu_131_meta_rssi_out) & grp_csi_udp_parser_Pipeline_parse_fu_131_meta_seq_out);
+    meta_out_TVALID <= regslice_both_meta_out_V_data_V_U_vld_out;
 
-    meta_out_write_local_assign_proc : process(ap_CS_fsm_state4, and_ln72_fu_163_p2, ap_block_state4)
+    meta_out_TVALID_int_regslice_assign_proc : process(ap_CS_fsm_state4, and_ln72_fu_183_p2, ap_block_state4)
     begin
-        if (((ap_const_lv1_1 = and_ln72_fu_163_p2) and (ap_const_logic_1 = ap_CS_fsm_state4) and (ap_const_boolean_0 = ap_block_state4))) then 
-            meta_out_write_local <= ap_const_logic_1;
+        if (((ap_const_boolean_0 = ap_block_state4) and (ap_const_lv1_1 = and_ln72_fu_183_p2) and (ap_const_logic_1 = ap_CS_fsm_state4))) then 
+            meta_out_TVALID_int_regslice <= ap_const_logic_1;
         else 
-            meta_out_write_local <= ap_const_logic_0;
+            meta_out_TVALID_int_regslice <= ap_const_logic_0;
         end if; 
     end process;
 
-    p_0_fu_169_p7 <= (((((ap_const_lv1_1 & grp_csi_udp_parser_Pipeline_parse_fu_111_meta_core_spatial_1_out) & grp_csi_udp_parser_Pipeline_parse_fu_111_meta_chanspec_3_out) & grp_csi_udp_parser_Pipeline_parse_fu_111_n_sub_3_out) & grp_csi_udp_parser_Pipeline_parse_fu_111_meta_rssi_2_out) & grp_csi_udp_parser_Pipeline_parse_fu_111_meta_seq_3_out);
     rx_TREADY <= regslice_both_rx_V_data_V_U_ack_in;
 
-    rx_TREADY_int_regslice_assign_proc : process(grp_csi_udp_parser_Pipeline_parse_fu_111_rx_TREADY, ap_CS_fsm_state3)
+    rx_TREADY_int_regslice_assign_proc : process(grp_csi_udp_parser_Pipeline_parse_fu_131_rx_TREADY, ap_CS_fsm_state3)
     begin
         if ((ap_const_logic_1 = ap_CS_fsm_state3)) then 
-            rx_TREADY_int_regslice <= grp_csi_udp_parser_Pipeline_parse_fu_111_rx_TREADY;
+            rx_TREADY_int_regslice <= grp_csi_udp_parser_Pipeline_parse_fu_131_rx_TREADY;
         else 
             rx_TREADY_int_regslice <= ap_const_logic_0;
         end if; 

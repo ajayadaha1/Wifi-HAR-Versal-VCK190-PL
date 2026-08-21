@@ -27,16 +27,16 @@ module csi_udp_parser_csi_udp_parser_Pipeline_parse (
         csi_out_TKEEP,
         csi_out_TSTRB,
         csi_out_TLAST,
+        meta_rssi_out,
+        meta_rssi_out_ap_vld,
+        meta_seq_out,
+        meta_seq_out_ap_vld,
+        meta_core_spatial_out,
+        meta_core_spatial_out_ap_vld,
+        meta_chanspec_out,
+        meta_chanspec_out_ap_vld,
         n_sub_3_out,
         n_sub_3_out_ap_vld,
-        meta_core_spatial_1_out,
-        meta_core_spatial_1_out_ap_vld,
-        meta_chanspec_3_out,
-        meta_chanspec_3_out_ap_vld,
-        meta_rssi_2_out,
-        meta_rssi_2_out_ap_vld,
-        meta_seq_3_out,
-        meta_seq_3_out_ap_vld,
         keep_1_out,
         keep_1_out_ap_vld
 );
@@ -62,27 +62,27 @@ output   csi_out_TVALID;
 output  [3:0] csi_out_TKEEP;
 output  [3:0] csi_out_TSTRB;
 output  [0:0] csi_out_TLAST;
+output  [7:0] meta_rssi_out;
+output   meta_rssi_out_ap_vld;
+output  [15:0] meta_seq_out;
+output   meta_seq_out_ap_vld;
+output  [7:0] meta_core_spatial_out;
+output   meta_core_spatial_out_ap_vld;
+output  [15:0] meta_chanspec_out;
+output   meta_chanspec_out_ap_vld;
 output  [15:0] n_sub_3_out;
 output   n_sub_3_out_ap_vld;
-output  [7:0] meta_core_spatial_1_out;
-output   meta_core_spatial_1_out_ap_vld;
-output  [15:0] meta_chanspec_3_out;
-output   meta_chanspec_3_out_ap_vld;
-output  [7:0] meta_rssi_2_out;
-output   meta_rssi_2_out_ap_vld;
-output  [15:0] meta_seq_3_out;
-output   meta_seq_3_out_ap_vld;
 output  [0:0] keep_1_out;
 output   keep_1_out_ap_vld;
 
 reg ap_idle;
 reg rx_TREADY;
 reg csi_out_TVALID;
+reg meta_rssi_out_ap_vld;
+reg meta_seq_out_ap_vld;
+reg meta_core_spatial_out_ap_vld;
+reg meta_chanspec_out_ap_vld;
 reg n_sub_3_out_ap_vld;
-reg meta_core_spatial_1_out_ap_vld;
-reg meta_chanspec_3_out_ap_vld;
-reg meta_rssi_2_out_ap_vld;
-reg meta_seq_3_out_ap_vld;
 reg keep_1_out_ap_vld;
 
 (* fsm_encoding = "none" *) reg   [0:0] ap_CS_fsm;
@@ -122,25 +122,25 @@ wire    ap_loop_init;
 reg   [7:0] b2_fu_130;
 reg   [7:0] b1_fu_134;
 reg   [7:0] b0_fu_138;
-reg   [7:0] ip_proto_fu_142;
-reg   [7:0] meta_rssi_fu_146;
+reg   [15:0] n_sub_fu_142;
+wire   [15:0] n_sub_3_fu_644_p2;
 reg    ap_loop_exit_ready_pp0_iter2_reg;
 wire    ap_block_pp0_stage0_grp0;
-reg   [7:0] meta_core_spatial_fu_150;
-reg   [15:0] n_sub_fu_154;
-wire   [15:0] n_sub_3_fu_644_p2;
-reg   [15:0] ethertype_fu_158;
-wire   [15:0] ethertype_2_fu_534_p4;
-wire   [15:0] ethertype_1_fu_665_p4;
-reg   [15:0] dport_fu_162;
+reg   [7:0] ip_proto_fu_146;
+reg   [7:0] p_0_0_0589767_fu_150;
+reg   [7:0] p_0_0_0589778_fu_154;
+reg   [15:0] dport_fu_158;
 wire   [15:0] dport_2_fu_465_p4;
 wire   [15:0] dport_1_fu_514_p4;
-reg   [15:0] meta_seq_fu_166;
-wire   [15:0] meta_seq_2_fu_427_p4;
-wire   [15:0] meta_seq_1_fu_442_p4;
-reg   [15:0] meta_chanspec_fu_170;
-wire   [15:0] meta_chanspec_2_fu_392_p4;
-wire   [15:0] meta_chanspec_1_fu_407_p4;
+reg   [15:0] ethertype_fu_162;
+wire   [15:0] ethertype_2_fu_534_p4;
+wire   [15:0] ethertype_1_fu_665_p4;
+reg   [15:0] empty_fu_166;
+wire   [15:0] tmp_3_fu_392_p4;
+wire   [15:0] tmp_2_fu_407_p4;
+reg   [15:0] empty_20_fu_170;
+wire   [15:0] tmp_1_fu_427_p4;
+wire   [15:0] tmp_fu_442_p4;
 reg   [1:0] phase_fu_174;
 reg   [0:0] keep_fu_178;
 wire   [0:0] and_ln41_1_fu_498_p2;
@@ -150,7 +150,7 @@ wire   [0:0] icmp_ln41_1_fu_481_p2;
 wire   [0:0] icmp_ln41_2_fu_487_p2;
 wire   [0:0] and_ln41_fu_492_p2;
 wire   [0:0] icmp_ln41_fu_475_p2;
-wire   [7:0] tmp_1_fu_558_p4;
+wire   [7:0] tmp_4_fu_558_p4;
 wire   [0:0] icmp_ln51_1_fu_568_p2;
 wire   [0:0] icmp_ln51_fu_552_p2;
 wire   [0:0] and_ln51_fu_574_p2;
@@ -168,14 +168,14 @@ reg    ap_condition_555;
 reg    ap_condition_559;
 reg    ap_condition_562;
 reg    ap_condition_565;
-reg    ap_condition_570;
-reg    ap_condition_573;
-reg    ap_condition_576;
-reg    ap_condition_581;
-reg    ap_condition_585;
-reg    ap_condition_588;
+reg    ap_condition_568;
+reg    ap_condition_571;
+reg    ap_condition_574;
+reg    ap_condition_577;
+reg    ap_condition_582;
+reg    ap_condition_586;
 reg    ap_condition_591;
-reg    ap_condition_594;
+reg    ap_condition_595;
 reg    ap_condition_598;
 wire    ap_ce_reg;
 
@@ -189,14 +189,14 @@ initial begin
 #0 b2_fu_130 = 8'd0;
 #0 b1_fu_134 = 8'd0;
 #0 b0_fu_138 = 8'd0;
-#0 ip_proto_fu_142 = 8'd0;
-#0 meta_rssi_fu_146 = 8'd0;
-#0 meta_core_spatial_fu_150 = 8'd0;
-#0 n_sub_fu_154 = 16'd0;
-#0 ethertype_fu_158 = 16'd0;
-#0 dport_fu_162 = 16'd0;
-#0 meta_seq_fu_166 = 16'd0;
-#0 meta_chanspec_fu_170 = 16'd0;
+#0 n_sub_fu_142 = 16'd0;
+#0 ip_proto_fu_146 = 8'd0;
+#0 p_0_0_0589767_fu_150 = 8'd0;
+#0 p_0_0_0589778_fu_154 = 8'd0;
+#0 dport_fu_158 = 16'd0;
+#0 ethertype_fu_162 = 16'd0;
+#0 empty_fu_166 = 16'd0;
+#0 empty_20_fu_170 = 16'd0;
 #0 phase_fu_174 = 2'd0;
 #0 keep_fu_178 = 1'd0;
 #0 ap_done_reg = 1'b0;
@@ -312,11 +312,11 @@ end
 always @ (posedge ap_clk) begin
     if (((1'b0 == ap_block_pp0_stage0_11001) & (1'b1 == ap_CS_fsm_pp0_stage0))) begin
         if ((ap_loop_init == 1'b1)) begin
-            dport_fu_162 <= 16'd0;
+            dport_fu_158 <= 16'd0;
         end else if ((1'b1 == ap_condition_562)) begin
-            dport_fu_162 <= dport_1_fu_514_p4;
+            dport_fu_158 <= dport_1_fu_514_p4;
         end else if ((1'b1 == ap_condition_559)) begin
-            dport_fu_162 <= dport_2_fu_465_p4;
+            dport_fu_158 <= dport_2_fu_465_p4;
         end
     end
 end
@@ -324,11 +324,35 @@ end
 always @ (posedge ap_clk) begin
     if (((1'b0 == ap_block_pp0_stage0_11001) & (1'b1 == ap_CS_fsm_pp0_stage0))) begin
         if ((ap_loop_init == 1'b1)) begin
-            ethertype_fu_158 <= 16'd0;
-        end else if (((ap_enable_reg_pp0_iter1 == 1'b1) & (icmp_ln35_fu_362_p2 == 1'd1))) begin
-            ethertype_fu_158 <= ethertype_1_fu_665_p4;
+            empty_20_fu_170 <= 16'd0;
+        end else if ((1'b1 == ap_condition_568)) begin
+            empty_20_fu_170 <= tmp_fu_442_p4;
         end else if ((1'b1 == ap_condition_565)) begin
-            ethertype_fu_158 <= ethertype_2_fu_534_p4;
+            empty_20_fu_170 <= tmp_1_fu_427_p4;
+        end
+    end
+end
+
+always @ (posedge ap_clk) begin
+    if (((1'b0 == ap_block_pp0_stage0_11001) & (1'b1 == ap_CS_fsm_pp0_stage0))) begin
+        if ((ap_loop_init == 1'b1)) begin
+            empty_fu_166 <= 16'd0;
+        end else if ((1'b1 == ap_condition_574)) begin
+            empty_fu_166 <= tmp_2_fu_407_p4;
+        end else if ((1'b1 == ap_condition_571)) begin
+            empty_fu_166 <= tmp_3_fu_392_p4;
+        end
+    end
+end
+
+always @ (posedge ap_clk) begin
+    if (((1'b0 == ap_block_pp0_stage0_11001) & (1'b1 == ap_CS_fsm_pp0_stage0))) begin
+        if ((ap_loop_init == 1'b1)) begin
+            ethertype_fu_162 <= 16'd0;
+        end else if (((ap_enable_reg_pp0_iter1 == 1'b1) & (icmp_ln35_fu_362_p2 == 1'd1))) begin
+            ethertype_fu_162 <= ethertype_1_fu_665_p4;
+        end else if ((1'b1 == ap_condition_577)) begin
+            ethertype_fu_162 <= ethertype_2_fu_534_p4;
         end
     end
 end
@@ -346,9 +370,9 @@ end
 always @ (posedge ap_clk) begin
     if (((1'b0 == ap_block_pp0_stage0_11001) & (1'b1 == ap_CS_fsm_pp0_stage0))) begin
         if ((ap_loop_init == 1'b1)) begin
-            ip_proto_fu_142 <= 8'd0;
-        end else if ((1'b1 == ap_condition_570)) begin
-            ip_proto_fu_142 <= rx_TDATA;
+            ip_proto_fu_146 <= 8'd0;
+        end else if ((1'b1 == ap_condition_582)) begin
+            ip_proto_fu_146 <= rx_TDATA;
         end
     end
 end
@@ -366,53 +390,29 @@ end
 always @ (posedge ap_clk) begin
     if (((1'b0 == ap_block_pp0_stage0_11001) & (1'b1 == ap_CS_fsm_pp0_stage0))) begin
         if ((ap_loop_init == 1'b1)) begin
-            meta_chanspec_fu_170 <= 16'd0;
-        end else if ((1'b1 == ap_condition_576)) begin
-            meta_chanspec_fu_170 <= meta_chanspec_1_fu_407_p4;
-        end else if ((1'b1 == ap_condition_573)) begin
-            meta_chanspec_fu_170 <= meta_chanspec_2_fu_392_p4;
+            n_sub_fu_142 <= 16'd0;
+        end else if ((1'b1 == ap_condition_586)) begin
+            n_sub_fu_142 <= n_sub_3_fu_644_p2;
         end
     end
 end
 
 always @ (posedge ap_clk) begin
     if ((1'b1 == ap_CS_fsm_pp0_stage0)) begin
-        if ((1'b1 == ap_condition_585)) begin
-            meta_core_spatial_fu_150 <= 8'd0;
-        end else if ((1'b1 == ap_condition_581)) begin
-            meta_core_spatial_fu_150 <= rx_TDATA;
-        end
-    end
-end
-
-always @ (posedge ap_clk) begin
-    if ((1'b1 == ap_CS_fsm_pp0_stage0)) begin
-        if ((1'b1 == ap_condition_585)) begin
-            meta_rssi_fu_146 <= 8'd0;
-        end else if ((1'b1 == ap_condition_588)) begin
-            meta_rssi_fu_146 <= rx_TDATA;
-        end
-    end
-end
-
-always @ (posedge ap_clk) begin
-    if (((1'b0 == ap_block_pp0_stage0_11001) & (1'b1 == ap_CS_fsm_pp0_stage0))) begin
-        if ((ap_loop_init == 1'b1)) begin
-            meta_seq_fu_166 <= 16'd0;
-        end else if ((1'b1 == ap_condition_594)) begin
-            meta_seq_fu_166 <= meta_seq_1_fu_442_p4;
+        if ((1'b1 == ap_condition_595)) begin
+            p_0_0_0589767_fu_150 <= 8'd0;
         end else if ((1'b1 == ap_condition_591)) begin
-            meta_seq_fu_166 <= meta_seq_2_fu_427_p4;
+            p_0_0_0589767_fu_150 <= rx_TDATA;
         end
     end
 end
 
 always @ (posedge ap_clk) begin
-    if (((1'b0 == ap_block_pp0_stage0_11001) & (1'b1 == ap_CS_fsm_pp0_stage0))) begin
-        if ((ap_loop_init == 1'b1)) begin
-            n_sub_fu_154 <= 16'd0;
+    if ((1'b1 == ap_CS_fsm_pp0_stage0)) begin
+        if ((1'b1 == ap_condition_595)) begin
+            p_0_0_0589778_fu_154 <= 8'd0;
         end else if ((1'b1 == ap_condition_598)) begin
-            n_sub_fu_154 <= n_sub_3_fu_644_p2;
+            p_0_0_0589778_fu_154 <= rx_TDATA;
         end
     end
 end
@@ -506,33 +506,33 @@ end
 
 always @ (*) begin
     if (((1'b0 == ap_block_pp0_stage0_subdone_grp0_done_reg) & (1'b0 == ap_block_pp0_stage0_11001_grp0) & (ap_loop_exit_ready_pp0_iter2_reg == 1'b1) & (beat_last_reg_857 == 1'd1))) begin
-        meta_chanspec_3_out_ap_vld = 1'b1;
+        meta_chanspec_out_ap_vld = 1'b1;
     end else begin
-        meta_chanspec_3_out_ap_vld = 1'b0;
+        meta_chanspec_out_ap_vld = 1'b0;
     end
 end
 
 always @ (*) begin
     if (((1'b0 == ap_block_pp0_stage0_subdone_grp0_done_reg) & (1'b0 == ap_block_pp0_stage0_11001_grp0) & (ap_loop_exit_ready_pp0_iter2_reg == 1'b1) & (beat_last_reg_857 == 1'd1))) begin
-        meta_core_spatial_1_out_ap_vld = 1'b1;
+        meta_core_spatial_out_ap_vld = 1'b1;
     end else begin
-        meta_core_spatial_1_out_ap_vld = 1'b0;
+        meta_core_spatial_out_ap_vld = 1'b0;
     end
 end
 
 always @ (*) begin
     if (((1'b0 == ap_block_pp0_stage0_subdone_grp0_done_reg) & (1'b0 == ap_block_pp0_stage0_11001_grp0) & (ap_loop_exit_ready_pp0_iter2_reg == 1'b1) & (beat_last_reg_857 == 1'd1))) begin
-        meta_rssi_2_out_ap_vld = 1'b1;
+        meta_rssi_out_ap_vld = 1'b1;
     end else begin
-        meta_rssi_2_out_ap_vld = 1'b0;
+        meta_rssi_out_ap_vld = 1'b0;
     end
 end
 
 always @ (*) begin
     if (((1'b0 == ap_block_pp0_stage0_subdone_grp0_done_reg) & (1'b0 == ap_block_pp0_stage0_11001_grp0) & (ap_loop_exit_ready_pp0_iter2_reg == 1'b1) & (beat_last_reg_857 == 1'd1))) begin
-        meta_seq_3_out_ap_vld = 1'b1;
+        meta_seq_out_ap_vld = 1'b1;
     end else begin
-        meta_seq_3_out_ap_vld = 1'b0;
+        meta_seq_out_ap_vld = 1'b0;
     end
 end
 
@@ -632,43 +632,43 @@ always @ (*) begin
 end
 
 always @ (*) begin
-    ap_condition_565 = ((ap_enable_reg_pp0_iter1 == 1'b1) & (icmp_ln35_fu_362_p2 == 1'd0) & (idx_1_load_fu_342_p1 == 16'd13));
+    ap_condition_565 = ((ap_enable_reg_pp0_iter1 == 1'b1) & (icmp_ln35_fu_362_p2 == 1'd0) & (idx_1_load_fu_342_p1 == 16'd53));
 end
 
 always @ (*) begin
-    ap_condition_570 = ((ap_enable_reg_pp0_iter1 == 1'b1) & (icmp_ln35_fu_362_p2 == 1'd0) & (idx_1_load_fu_342_p1 == 16'd23));
+    ap_condition_568 = ((ap_enable_reg_pp0_iter1 == 1'b1) & (icmp_ln35_fu_362_p2 == 1'd0) & (idx_1_load_fu_342_p1 == 16'd52));
 end
 
 always @ (*) begin
-    ap_condition_573 = ((ap_enable_reg_pp0_iter1 == 1'b1) & (icmp_ln35_fu_362_p2 == 1'd0) & (idx_1_load_fu_342_p1 == 16'd57));
+    ap_condition_571 = ((ap_enable_reg_pp0_iter1 == 1'b1) & (icmp_ln35_fu_362_p2 == 1'd0) & (idx_1_load_fu_342_p1 == 16'd57));
 end
 
 always @ (*) begin
-    ap_condition_576 = ((ap_enable_reg_pp0_iter1 == 1'b1) & (icmp_ln35_fu_362_p2 == 1'd0) & (idx_1_load_fu_342_p1 == 16'd56));
+    ap_condition_574 = ((ap_enable_reg_pp0_iter1 == 1'b1) & (icmp_ln35_fu_362_p2 == 1'd0) & (idx_1_load_fu_342_p1 == 16'd56));
 end
 
 always @ (*) begin
-    ap_condition_581 = ((1'b0 == ap_block_pp0_stage0_11001) & (ap_enable_reg_pp0_iter1 == 1'b1) & (icmp_ln35_fu_362_p2 == 1'd0) & (idx_1_load_fu_342_p1 == 16'd54));
+    ap_condition_577 = ((ap_enable_reg_pp0_iter1 == 1'b1) & (icmp_ln35_fu_362_p2 == 1'd0) & (idx_1_load_fu_342_p1 == 16'd13));
 end
 
 always @ (*) begin
-    ap_condition_585 = ((1'b0 == ap_block_pp0_stage0_subdone_grp0_done_reg) & (1'b0 == ap_block_pp0_stage0_11001_grp0) & (ap_loop_init == 1'b1));
+    ap_condition_582 = ((ap_enable_reg_pp0_iter1 == 1'b1) & (icmp_ln35_fu_362_p2 == 1'd0) & (idx_1_load_fu_342_p1 == 16'd23));
 end
 
 always @ (*) begin
-    ap_condition_588 = ((1'b0 == ap_block_pp0_stage0_11001) & (ap_enable_reg_pp0_iter1 == 1'b1) & (icmp_ln35_fu_362_p2 == 1'd0) & (idx_1_load_fu_342_p1 == 16'd44));
+    ap_condition_586 = (~(idx_1_load_fu_342_p1 == 16'd57) & ~(idx_1_load_fu_342_p1 == 16'd56) & ~(idx_1_load_fu_342_p1 == 16'd54) & ~(idx_1_load_fu_342_p1 == 16'd53) & ~(idx_1_load_fu_342_p1 == 16'd52) & ~(idx_1_load_fu_342_p1 == 16'd44) & ~(idx_1_load_fu_342_p1 == 16'd37) & ~(idx_1_load_fu_342_p1 == 16'd36) & ~(idx_1_load_fu_342_p1 == 16'd23) & ~(idx_1_load_fu_342_p1 == 16'd13) & (1'd1 == and_ln51_1_fu_580_p2) & (ap_enable_reg_pp0_iter1 == 1'b1) & (phase_load_load_fu_586_p1 == 2'd3) & (icmp_ln35_fu_362_p2 == 1'd0));
 end
 
 always @ (*) begin
-    ap_condition_591 = ((ap_enable_reg_pp0_iter1 == 1'b1) & (icmp_ln35_fu_362_p2 == 1'd0) & (idx_1_load_fu_342_p1 == 16'd53));
+    ap_condition_591 = ((1'b0 == ap_block_pp0_stage0_11001) & (ap_enable_reg_pp0_iter1 == 1'b1) & (icmp_ln35_fu_362_p2 == 1'd0) & (idx_1_load_fu_342_p1 == 16'd54));
 end
 
 always @ (*) begin
-    ap_condition_594 = ((ap_enable_reg_pp0_iter1 == 1'b1) & (icmp_ln35_fu_362_p2 == 1'd0) & (idx_1_load_fu_342_p1 == 16'd52));
+    ap_condition_595 = ((1'b0 == ap_block_pp0_stage0_subdone_grp0_done_reg) & (1'b0 == ap_block_pp0_stage0_11001_grp0) & (ap_loop_init == 1'b1));
 end
 
 always @ (*) begin
-    ap_condition_598 = (~(idx_1_load_fu_342_p1 == 16'd57) & ~(idx_1_load_fu_342_p1 == 16'd56) & ~(idx_1_load_fu_342_p1 == 16'd54) & ~(idx_1_load_fu_342_p1 == 16'd53) & ~(idx_1_load_fu_342_p1 == 16'd52) & ~(idx_1_load_fu_342_p1 == 16'd44) & ~(idx_1_load_fu_342_p1 == 16'd37) & ~(idx_1_load_fu_342_p1 == 16'd36) & ~(idx_1_load_fu_342_p1 == 16'd23) & ~(idx_1_load_fu_342_p1 == 16'd13) & (1'd1 == and_ln51_1_fu_580_p2) & (ap_enable_reg_pp0_iter1 == 1'b1) & (phase_load_load_fu_586_p1 == 2'd3) & (icmp_ln35_fu_362_p2 == 1'd0));
+    ap_condition_598 = ((1'b0 == ap_block_pp0_stage0_11001) & (ap_enable_reg_pp0_iter1 == 1'b1) & (icmp_ln35_fu_362_p2 == 1'd0) & (idx_1_load_fu_342_p1 == 16'd44));
 end
 
 assign ap_done = ap_done_sig;
@@ -695,23 +695,23 @@ assign csi_out_TLAST = beat_last_reg_857;
 
 assign csi_out_TSTRB = 4'd15;
 
-assign dport_1_fu_514_p4 = {{rx_TDATA}, {dport_fu_162[7:0]}};
+assign dport_1_fu_514_p4 = {{rx_TDATA}, {dport_fu_158[7:0]}};
 
-assign dport_2_fu_465_p4 = {{dport_fu_162[15:8]}, {rx_TDATA}};
+assign dport_2_fu_465_p4 = {{dport_fu_158[15:8]}, {rx_TDATA}};
 
-assign ethertype_1_fu_665_p4 = {{rx_TDATA}, {ethertype_fu_158[7:0]}};
+assign ethertype_1_fu_665_p4 = {{rx_TDATA}, {ethertype_fu_162[7:0]}};
 
-assign ethertype_2_fu_534_p4 = {{ethertype_fu_158[15:8]}, {rx_TDATA}};
+assign ethertype_2_fu_534_p4 = {{ethertype_fu_162[15:8]}, {rx_TDATA}};
 
 assign icmp_ln35_fu_362_p2 = ((idx_fu_126 == 16'd12) ? 1'b1 : 1'b0);
 
-assign icmp_ln41_1_fu_481_p2 = ((ip_proto_fu_142 == 8'd17) ? 1'b1 : 1'b0);
+assign icmp_ln41_1_fu_481_p2 = ((ip_proto_fu_146 == 8'd17) ? 1'b1 : 1'b0);
 
 assign icmp_ln41_2_fu_487_p2 = ((dport_2_fu_465_p4 == udp_port) ? 1'b1 : 1'b0);
 
-assign icmp_ln41_fu_475_p2 = ((ethertype_fu_158 == 16'd2048) ? 1'b1 : 1'b0);
+assign icmp_ln41_fu_475_p2 = ((ethertype_fu_162 == 16'd2048) ? 1'b1 : 1'b0);
 
-assign icmp_ln51_1_fu_568_p2 = ((tmp_1_fu_558_p4 == 8'd0) ? 1'b1 : 1'b0);
+assign icmp_ln51_1_fu_568_p2 = ((tmp_4_fu_558_p4 == 8'd0) ? 1'b1 : 1'b0);
 
 assign icmp_ln51_fu_552_p2 = ((idx_fu_126 > 16'd59) ? 1'b1 : 1'b0);
 
@@ -721,28 +721,28 @@ assign idx_2_fu_348_p2 = (idx_fu_126 + 16'd1);
 
 assign keep_1_out = keep_fu_178;
 
-assign meta_chanspec_1_fu_407_p4 = {{meta_chanspec_fu_170[15:8]}, {rx_TDATA}};
+assign meta_chanspec_out = empty_fu_166;
 
-assign meta_chanspec_2_fu_392_p4 = {{rx_TDATA}, {meta_chanspec_fu_170[7:0]}};
+assign meta_core_spatial_out = p_0_0_0589767_fu_150;
 
-assign meta_chanspec_3_out = meta_chanspec_fu_170;
+assign meta_rssi_out = p_0_0_0589778_fu_154;
 
-assign meta_core_spatial_1_out = meta_core_spatial_fu_150;
+assign meta_seq_out = empty_20_fu_170;
 
-assign meta_rssi_2_out = meta_rssi_fu_146;
+assign n_sub_3_fu_644_p2 = (n_sub_fu_142 + 16'd1);
 
-assign meta_seq_1_fu_442_p4 = {{meta_seq_fu_166[15:8]}, {rx_TDATA}};
-
-assign meta_seq_2_fu_427_p4 = {{rx_TDATA}, {meta_seq_fu_166[7:0]}};
-
-assign meta_seq_3_out = meta_seq_fu_166;
-
-assign n_sub_3_fu_644_p2 = (n_sub_fu_154 + 16'd1);
-
-assign n_sub_3_out = n_sub_fu_154;
+assign n_sub_3_out = n_sub_fu_142;
 
 assign phase_load_load_fu_586_p1 = phase_fu_174;
 
-assign tmp_1_fu_558_p4 = {{n_sub_fu_154[15:8]}};
+assign tmp_1_fu_427_p4 = {{rx_TDATA}, {empty_20_fu_170[7:0]}};
+
+assign tmp_2_fu_407_p4 = {{empty_fu_166[15:8]}, {rx_TDATA}};
+
+assign tmp_3_fu_392_p4 = {{rx_TDATA}, {empty_fu_166[7:0]}};
+
+assign tmp_4_fu_558_p4 = {{n_sub_fu_142[15:8]}};
+
+assign tmp_fu_442_p4 = {{empty_20_fu_170[15:8]}, {rx_TDATA}};
 
 endmodule //csi_udp_parser_csi_udp_parser_Pipeline_parse

@@ -1,0 +1,26 @@
+{
+  "n_features": 6063,
+  "train": 4850,
+  "heldout": 1213,
+  "heldout_triplet_acc": {
+    "raw_features_baseline": 66.42,
+    "random_encoder_baseline": 69.56,
+    "trained_encoder": 82.33
+  },
+  "int4_encoder_bytes": 4640,
+  "int4_encoder_kb": 4.53,
+  "params": 9280,
+  "weights_sha256": "3b37bca66e6050c50ccbc0f6e0501824f258bfdd8675dc0f4541b1e2e96feecd",
+  "int4_bin_total_bytes": 4672,
+  "int4_bin_total_kb": 4.56,
+  "scales": {
+    "w1.weight": 0.1270073801279068,
+    "w1.bias": 0.054712533950805664,
+    "bn1.weight": 0.37957486510276794,
+    "bn1.bias": 0.12140350043773651,
+    "w2.weight": 0.08807520568370819,
+    "w2.bias": 0.035042937844991684,
+    "bn2.weight": 0.19837316870689392,
+    "bn2.bias": 0.10141342133283615
+  }
+}

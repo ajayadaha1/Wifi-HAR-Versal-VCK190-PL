@@ -1,0 +1,32 @@
+{
+  "model_type": "sona-lora",
+  "name": "wifi-densepose-csi-embedding",
+  "version": "1.0.0",
+  "architecture": "csi-encoder-8-64-128",
+  "training": {
+    "steps": 12212300,
+    "loss": 0.06543377335206552,
+    "learningRate": 0.001
+  },
+  "custom": {
+    "inputDim": 8,
+    "hiddenDim": 64,
+    "embeddingDim": 128,
+    "totalFrames": 60630,
+    "totalTriplets": 610615,
+    "nodes": [
+      2,
+      1
+    ],
+    "quantizationBits": 4
+  },
+  "lora_config": {
+    "rank": 8,
+    "alpha": 16,
+    "dropout": 0.05,
+    "targetModules": [
+      "encoder",
+      "task_heads"
+    ]
+  }
+}

@@ -25,6 +25,7 @@ static const int MAX_SUBCARRIERS = 256; // 80 MHz on bcm43455c0
 
 typedef ap_axiu<8,  0, 0, 0> axis_byte; // RX byte stream from AXI-Ethernet
 typedef ap_axiu<32, 0, 0, 0> axis_csi;  // packed { imag[31:16], real[15:0] }
+typedef ap_axiu<64, 0, 0, 0> axis_meta; // one packed csi_meta_t per CSI frame
 
 struct csi_meta_t {
     ap_uint<16> seq;          // nexmon sequence number
@@ -35,8 +36,34 @@ struct csi_meta_t {
     ap_uint<1>  valid;        // 1 = a CSI frame was emitted
 };
 
+// --- metadata wire layout (64-bit AXIS TDATA, one beat per CSI frame) -------
+// A beat is only emitted for a valid frame, so csi_meta_t::valid is implicit
+// and is NOT carried on the wire. Keep this in sync with the DDR consumer.
+//   [15:0] seq   [23:16] rssi   [39:24] n_sub   [55:40] chanspec
+//   [63:56] core_spatial
+static inline ap_uint<64> csi_meta_pack(const csi_meta_t &m) {
+    ap_uint<64> w = 0;
+    w(15, 0)  = m.seq;
+    w(23, 16) = (ap_uint<8>)m.rssi;
+    w(39, 24) = m.n_sub;
+    w(55, 40) = m.chanspec;
+    w(63, 56) = m.core_spatial;
+    return w;
+}
+
+static inline csi_meta_t csi_meta_unpack(ap_uint<64> w) {
+    csi_meta_t m;
+    m.seq          = w(15, 0);
+    m.rssi         = (ap_int<8>)(ap_uint<8>)w(23, 16);
+    m.n_sub        = w(39, 24);
+    m.chanspec     = w(55, 40);
+    m.core_spatial = w(63, 56);
+    m.valid        = 1;
+    return m;
+}
+
 // Processes exactly one Ethernet frame per call (returns on TLAST).
-void csi_udp_parser(hls::stream<axis_byte>  &rx,
-                    hls::stream<axis_csi>   &csi_out,
-                    hls::stream<csi_meta_t> &meta_out,
-                    ap_uint<16>              udp_port);
+void csi_udp_parser(hls::stream<axis_byte> &rx,
+                    hls::stream<axis_csi>  &csi_out,
+                    hls::stream<axis_meta> &meta_out,
+                    ap_uint<16>             udp_port);
