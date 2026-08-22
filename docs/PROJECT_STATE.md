@@ -1450,3 +1450,17 @@ GT as a pre-synth'd OOC checkpoint. Then synth+impl -> XSA, package, and finally
 bring up the SFP link with the physical Raspberry Pi (nexmon) - the last mile that
 needs the board + Pi. The BD wiring is done and validated; only GT IP delivery
 remains.
+
+### D2b gtwiz IP-gen: IP-cache reuse tried, did NOT resolve (2026-08-22)
+Pointing the v++ project's IP cache at the inline build's cache
+(config_ip_cache -use_cache_location inline_eth.cache/ip) did NOT fix it: the
+eth_gt_phy_0 OOC synth still emits a csi_eth_gtwiz stub lacking QUAD0_TX2/RX2_outclk
++ hsclk1_rplllock. The identical XCI exposes those ports when generated in the
+inline PLAIN-Vivado project but not under v++'s generate_target - so cache hashing
+does not bridge the two contexts. The deterministic fix is to integrate the
+inline build's ALREADY-generated gtwiz (synth/csi_eth_gtwiz.v + csi_eth_gtwiz.dcp,
+which DO have the channel-2 ports) as fixed netlist sources so nothing regenerates,
+OR reproduce the §354-390 param incantation (QUAD0_PROT0_* + QUAD0_USAGE without
+the example-design hierarchy reference) so the standalone XCI exposes ch-2. Either
+is a focused multi-cycle IP-integration task. Everything else in D2b is DONE:
+the full live-path BD validates and all sources/constraints are wired.

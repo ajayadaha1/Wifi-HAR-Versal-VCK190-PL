@@ -28,14 +28,19 @@ XDC=$ROOT/hw/constraints/sfp0.xdc
 OUT="${1:-inline_cogen_d2eth.xsa}"; TMP="${2:-_x_d2eth}"
 
 # PRE-SysLink overlay: add the parser IP repo + GT RTL/XCI + SFP0 XDC to the project.
+# The csi_eth_gtwiz XCI regenerates without its channel-2 ports under v++ (349-390
+# trap); point the IP cache at the inline build, whose gtwiz DCP has the right ports.
+INLINE_IPCACHE=/group/bcapps/ajayad/master_thesis_rebirth/work/hw/inline_eth_hw/inline_eth.cache/ip
 cat > "$PRE" <<TCL
+catch { config_ip_cache -use_cache_location {$INLINE_IPCACHE} }
 set_property ip_repo_paths {$ROOT/hw/ip_repo} [current_project]
 update_ip_catalog -rebuild
 add_files -norecurse {$ROOT/hw/hdl/eth_gt_phy.v $ROOT/hw/hdl/axis_sink.v}
 add_files -norecurse {$ROOT/hw/ip/csi_eth_gtwiz.xci}
 add_files -fileset constrs_1 -norecurse {$XDC}
 set_property used_in_synthesis false [get_files $XDC]
-puts "PRE_D2ETH: ip_repo + eth_gt_phy + gtwiz XCI + SFP0 XDC added"
+catch { generate_target all [get_files csi_eth_gtwiz.xci] }
+puts "PRE_D2ETH: ip_repo + eth_gt_phy + gtwiz XCI (cache=$INLINE_IPCACHE) + SFP0 XDC added"
 TCL
 
 echo "D2ETH_LINK_START $(date)  out=$OUT tmp=$TMP eth_full=${D2_ETH_FULL:-0} validate_only=${D2_VALIDATE_ONLY:-0}"
