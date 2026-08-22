@@ -28,20 +28,30 @@ XDC=$ROOT/hw/constraints/sfp0.xdc
 OUT="${1:-inline_cogen_d2eth.xsa}"; TMP="${2:-_x_d2eth}"
 
 # PRE-SysLink overlay: add the parser IP repo + GT RTL/XCI + SFP0 XDC to the project.
-# The csi_eth_gtwiz XCI regenerates without its channel-2 ports under v++ (349-390
-# trap); point the IP cache at the inline build, whose gtwiz DCP has the right ports.
-INLINE_IPCACHE=/group/bcapps/ajayad/master_thesis_rebirth/work/hw/inline_eth_hw/inline_eth.cache/ip
-cat > "$PRE" <<TCL
-catch { config_ip_cache -use_cache_location {$INLINE_IPCACHE} }
-set_property ip_repo_paths {$ROOT/hw/ip_repo} [current_project]
+# The csi_eth_gtwiz XCI only exposes its channel-2 outclk/rplllock ports when the
+# INTF0_GT_SETTINGS + QUAD0_HSCLK1_RPLL_LOCK_EN are applied at BUILD time (they are
+# NOT stored in the .xci) - exactly as project_top.tcl does. Apply them here before
+# generate_target so the v++-generated gtwiz matches eth_gt_phy.v (fixes 349-390).
+cat > "$PRE" <<'TCL'
+set_property ip_repo_paths {__ROOT__/hw/ip_repo} [current_project]
 update_ip_catalog -rebuild
-add_files -norecurse {$ROOT/hw/hdl/eth_gt_phy.v $ROOT/hw/hdl/axis_sink.v}
-add_files -norecurse {$ROOT/hw/ip/csi_eth_gtwiz.xci}
-add_files -fileset constrs_1 -norecurse {$XDC}
-set_property used_in_synthesis false [get_files $XDC]
-catch { generate_target all [get_files csi_eth_gtwiz.xci] }
-puts "PRE_D2ETH: ip_repo + eth_gt_phy + gtwiz XCI (cache=$INLINE_IPCACHE) + SFP0 XDC added"
+add_files -norecurse {__ROOT__/hw/hdl/eth_gt_phy.v __ROOT__/hw/hdl/axis_sink.v}
+import_ip {__ROOT__/hw/ip/csi_eth_gtwiz.xci}
+add_files -fileset constrs_1 -norecurse {__XDC__}
+set_property used_in_synthesis false [get_files __XDC__]
+set _gtip [get_ips -all -filter {NAME =~ *csi_eth_gtwiz*}]
+if {[llength $_gtip]} {
+    set_property -dict [list \
+        CONFIG.INTF0_GT_SETTINGS {LR0_SETTINGS { TX_REFCLK_FREQUENCY 156.25 RX_REFCLK_FREQUENCY 156.25 TX_PLL_TYPE RPLL RX_PLL_TYPE RPLL TXPROGDIV_FREQ_SOURCE RPLL RXPROGDIV_FREQ_SOURCE RPLL TXPROGDIV_FREQ_VAL 125.000 RXPROGDIV_FREQ_VAL 62.500 RX_OUTCLK_SOURCE RXPROGDIVCLK TX_OUTCLK_SOURCE TXPROGDIVCLK}} \
+        CONFIG.QUAD0_HSCLK1_RPLL_LOCK_EN {true} ] $_gtip
+    puts "PRE_D2ETH: applied INTF0_GT_SETTINGS + HSCLK1_RPLL_LOCK to $_gtip"
+    catch { generate_target all $_gtip }
+} else {
+    puts "PRE_D2ETH: WARN csi_eth_gtwiz IP not found for GT settings"
+}
+puts "PRE_D2ETH: ip_repo + eth_gt_phy + gtwiz XCI (ch2 GT settings) + SFP0 XDC added"
 TCL
+sed -i "s#__ROOT__#$ROOT#g; s#__XDC__#$XDC#g" "$PRE"
 
 echo "D2ETH_LINK_START $(date)  out=$OUT tmp=$TMP eth_full=${D2_ETH_FULL:-0} validate_only=${D2_VALIDATE_ONLY:-0}"
 rm -rf "$TMP"

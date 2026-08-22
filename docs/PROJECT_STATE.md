@@ -1464,3 +1464,30 @@ OR reproduce the §354-390 param incantation (QUAD0_PROT0_* + QUAD0_USAGE withou
 the example-design hierarchy reference) so the standalone XCI exposes ch-2. Either
 is a focused multi-cycle IP-integration task. Everything else in D2b is DONE:
 the full live-path BD validates and all sources/constraints are wired.
+
+### ✅ D2b gtwiz RESOLVED - full Ethernet live-path XSA BUILT (2026-08-22)
+Reviewing project_top.tcl revealed the gtwiz fix: the channel-2 outclk/rplllock
+ports are only exposed when CONFIG.INTF0_GT_SETTINGS {LR0_SETTINGS {...RPLL...
+156.25...TXPROGDIV 125 RXPROGDIV 62.5...}} + CONFIG.QUAD0_HSCLK1_RPLL_LOCK_EN true
+are applied to the IP at BUILD time (they are NOT stored in the .xci), and the XCI
+must be `import_ip` (copied/localized) NOT `add_files` (referencing it in place
+made Vivado try to regenerate into the stale eth_ex example-project path and
+SEGFAULTED). The v++ PRE-SysLink overlay (overlay_d2_eth_pre.tcl via
+link_cogen_d2eth.sh) now: import_ip the gtwiz XCI, set_property the GT settings on
+[get_ips *csi_eth_gtwiz*], generate_target. Result on a clean run (no concurrent
+Vivado): PRE applied the settings, create_bd completed, validate PASSED,
+**synth COMPLETED, impl COMPLETED -> inline_cogen_d2eth.xsa (4.47 MB)** carrying
+the paired shim solution (aie_pl_intf.json + aieshim_solution.aiesol). Packaged ->
+inline_cogen_d2eth.xclbin (7.97MB) + co-gen CDO (28156B) + BOOT_d2eth.BIN (4.6MB).
+
+So the COMPLETE live path - SFP0 -> GTY(eth_gt_phy) -> axi_ethernet(1000BaseX) ->
+rx_cdc_fifo -> rx_dwidth -> csi_udp_parser -> csi_mux(S00) -> AI Engine -> s2mm ->
+DDR - is now built end-to-end in the v++ co-gen flow (AIE binding preserved). This
+is the D1->D2 arc complete in the build.
+
+REMAINING (needs a board + the physical Raspberry Pi, neither available here):
+(1) rootfs with a live autorun (csi_ctl mac-init, set csi_mux S00=parser, check
+PCS link + parser RX counters), (2) flash to a board with the Pi (nexmon_csi) on
+SFP0, (3) validate live CSI -> parser -> AIE -> results. NOTE: the board farm hold
+was lost mid-session (JTAG cable fault released chanterelle8); re-acquire via
+interactive systest for the live bring-up.
