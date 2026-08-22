@@ -1409,3 +1409,44 @@ earlier) and the D2a image booted cleanly through the same phase - so this is th
 known flaky external-storage boot (§22), board-state, not a design regression.
 Recovery: a board power-cycle (SC/board-farm action) or physically detaching the
 SD/USB, then re-run boot_demo.tcl. Board hold retained (not released).
+
+---
+
+## 24. 2026-08-22 - D2b Ethernet front-end: FULL BD validates; synth blocked on gtwiz IP gen
+
+Advanced D2b from "parser-only structural" to the COMPLETE live Ethernet front-end
+in the v++ co-gen overlay. Clock topology first confirmed via overlay_d2_clkprobe.tcl:
+the v++ platform BD already exposes everything the inline design needed -
+`clk_wizard_0/clk_out2` = 100 MHz (MAC lite/axis/freerun), `proc_sys_reset_4` on
+that 100 MHz net (domain reset), 312.5 MHz FAST = clk_wizard_0_clk_out1_o2, and
+CIPS `pl0_ref_clk` for a 50 MHz ref wizard.
+
+overlay_d2_eth.tcl (D2_ETH_FULL=1) now ports the entire add_eth_phy chain:
+axi_ethernet 8.0 (1000BaseX, GTY X0Y3, refclk 156.25) + eth_gt_phy_0 (GT wrapper,
+6 SFP0 externals) + eth_ref_clk_wiz (50 MHz off pl0_ref_clk) + the 32 discrete
+GT<->MAC pins + signal_detect tie-off + RX chain (m_axis_rxd -> rx_cdc_fifo async
+100->312.5 -> rx_dwidth 8b -> csi_udp_parser_0/rx) + axis_sink rxs drain + MAC
+s_axi via slow_ctrl_smc (312.5->100) @0xA4080000 + all clocks/resets. TX AXIS
+left unconnected (RX-only). link_cogen_d2eth.sh PRE-overlay injects the parser IP
+repo + eth_gt_phy.v + axis_sink.v + csi_eth_gtwiz.xci + hw/constraints/sfp0.xdc.
+
+**validate_bd_design PASSED** for the full front-end (after fixing two overlay
+bugs: axi_eth seg name is `s_axi/Reg0` not `/Reg`; the 100 MHz clock connect must
+use `connect_bd_net -net <netname>` not a net object). So the ENTIRE live-path BD
+is correctly wired into the co-gen platform.
+
+**Remaining blocker (the §349-390 gtwiz trap, now in the v++ context):** synth
+fails because the v++-generated `csi_eth_gtwiz` IP does NOT expose the channel-2
+ports eth_gt_phy.v instantiates (`QUAD0_TX2_outclk`, `QUAD0_RX2_outclk`,
+`QUAD0_hsclk1_rplllock`) - the IP came out as a portless black-box stub. The repo
+XCI has the correct channel-2 config (QUAD0_PROT0_{RX,TX}2_EN=true, INTF_QUAD_
+CHANNEL_MAP QUAD0_RX2/TX2), but that XCI is from the axi_ethernet EXAMPLE-DESIGN
+context (QUAD0_USAGE references eth_ex_gtwiz_versal) and does not regenerate its
+output products standalone under v++'s generate_target.
+NEXT: pre-generate the gtwiz IP in a standalone Vivado project (its native
+context, where the inline build got the right ports) and add the GENERATED
+products / a synthesized .dcp to the v++ link instead of the raw XCI - OR wrap the
+GT as a pre-synth'd OOC checkpoint. Then synth+impl -> XSA, package, and finally
+bring up the SFP link with the physical Raspberry Pi (nexmon) - the last mile that
+needs the board + Pi. The BD wiring is done and validated; only GT IP delivery
+remains.

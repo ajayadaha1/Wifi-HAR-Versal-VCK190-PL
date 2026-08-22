@@ -24,16 +24,18 @@ ROOT=/group/bcapps/ajayad/master_thesis_rebirth/work
 PLATFORM=/proj/rdi/xbuilds/2025.2_released/internal_platforms/xilinx_vck190_base_202520_1/xilinx_vck190_base_202520_1.xpfm
 POST=$PWD/overlay_d2_eth.tcl
 PRE=$PWD/overlay_d2_eth_pre.tcl
-XDC=$ROOT/hw/constraints/inline.xdc
+XDC=$ROOT/hw/constraints/sfp0.xdc
 OUT="${1:-inline_cogen_d2eth.xsa}"; TMP="${2:-_x_d2eth}"
 
-# PRE-SysLink overlay: add the parser IP repo + GT RTL/XCI to the v++ project.
+# PRE-SysLink overlay: add the parser IP repo + GT RTL/XCI + SFP0 XDC to the project.
 cat > "$PRE" <<TCL
 set_property ip_repo_paths {$ROOT/hw/ip_repo} [current_project]
 update_ip_catalog -rebuild
 add_files -norecurse {$ROOT/hw/hdl/eth_gt_phy.v $ROOT/hw/hdl/axis_sink.v}
 add_files -norecurse {$ROOT/hw/ip/csi_eth_gtwiz.xci}
-puts "PRE_D2ETH: ip_repo + eth_gt_phy + gtwiz XCI added"
+add_files -fileset constrs_1 -norecurse {$XDC}
+set_property used_in_synthesis false [get_files $XDC]
+puts "PRE_D2ETH: ip_repo + eth_gt_phy + gtwiz XCI + SFP0 XDC added"
 TCL
 
 echo "D2ETH_LINK_START $(date)  out=$OUT tmp=$TMP eth_full=${D2_ETH_FULL:-0} validate_only=${D2_VALIDATE_ONLY:-0}"
@@ -41,10 +43,6 @@ rm -rf "$TMP"
 v++ -l -t hw --platform "$PLATFORM" --temp_dir "$TMP" --config system.cfg \
   --advanced.param compiler.userPreSysLinkOverlayTcl="$PRE" \
   --advanced.param compiler.userPostSysLinkOverlayTcl="$POST" \
-  --vivado.prop "run.impl_1.{STEPS.OPT_DESIGN.ARGS.MORE OPTIONS}={}" \
   libadf_motiononly.a mm2s.xo s2mm.xo -o "$OUT" 2>&1 || true
 echo "D2ETH_LINK_DONE $(date)"
 ls -la "$OUT" 2>/dev/null || echo "(no xsa - expected if validate-only or missing GT sources)"
-# NOTE: SFP0 XDC ($XDC) must reach the impl constraints fileset; if --vivado.prop
-# does not carry it, add it via the PRE overlay:
-#   add_files -fileset constrs_1 -norecurse {$XDC}
