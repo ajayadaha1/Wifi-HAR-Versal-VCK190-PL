@@ -167,6 +167,14 @@ update_compile_order -fileset sources_1
 # - synth/impl then run on the bare PHY and write_device_image fails with
 # "[DRC CIPS-2] Versal designs must contain a CIPS IP" plus ~150 unconstrained
 # ports.
+#
+# CRITICAL: also disable automatic source management. With the default
+# (source_mgmt_mode = All) Vivado RE-RUNS top detection every time the project is
+# opened, so REOPENING this project (e.g. to validate / Generate Device Image in
+# the GUI) silently reverts top back to eth_gt_phy and reproduces the CIPS-2 +
+# ~189 unconstrained GT-port DRC errors even though the batch build succeeded.
+# DisplayOnly persists in the .xpr and keeps vitis_design_wrapper pinned on reopen.
+set_property source_mgmt_mode DisplayOnly [current_project]
 set_property top vitis_design_wrapper [get_filesets sources_1]
 update_compile_order -fileset sources_1
 if {[get_property top [get_filesets sources_1]] ne "vitis_design_wrapper"} {
