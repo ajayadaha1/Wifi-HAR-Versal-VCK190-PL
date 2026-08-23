@@ -162,21 +162,19 @@ puts "AIE_ARCHIVE_SCOPED $AIE_ARCHIVE -> ai_engine_0"
 # 4) wrap + constrain + impl -> XSA
 make_wrapper -files [get_files *vitis_design.bd] -top -import -force
 update_compile_order -fileset sources_1
-# Pin the top explicitly. eth_gt_phy.v is added to sources_1 before the BD
-# exists, so Vivado's automatic top detection latches onto it and never lets go
-# - synth/impl then run on the bare PHY and write_device_image fails with
-# "[DRC CIPS-2] Versal designs must contain a CIPS IP" plus ~150 unconstrained
-# ports.
+# Pin the top explicitly. eth_gt_phy.v / axis_sink.v are added to sources_1 before
+# the BD exists (they are BD module references), so Vivado's automatic top
+# detection can latch onto the bare eth_gt_phy PHY - synth/impl then run on the
+# bare PHY and write_device_image fails with "[DRC CIPS-2] Versal designs must
+# contain a CIPS IP" plus ~189 unconstrained GT ports.
 #
-# CRITICAL: also disable automatic source management. With the default
-# (source_mgmt_mode = All) Vivado RE-RUNS top detection every time the project is
-# opened, so REOPENING this project (e.g. to validate / Generate Device Image in
-# the GUI) silently reverts top back to eth_gt_phy and reproduces the CIPS-2 +
-# ~189 unconstrained GT-port DRC errors even though the batch build succeeded.
-# DisplayOnly persists in the .xpr and keeps vitis_design_wrapper pinned on reopen.
-set_property source_mgmt_mode DisplayOnly [current_project]
+# NOTE: source_mgmt_mode MUST stay automatic (All) - the BD uses -type module
+# references (eth_gt_phy, axis_sink), and "manual"/DisplayOnly modes drop module
+# references ([filemgmt 56-176]) so synthesis fails to resolve them. So instead of
+# disabling auto management, we (a) never run update_compile_order AGAIN after
+# pinning the top (a second update re-runs auto-top and can revert it), and
+# (b) re-assert the top immediately before each run is launched.
 set_property top vitis_design_wrapper [get_filesets sources_1]
-update_compile_order -fileset sources_1
 if {[get_property top [get_filesets sources_1]] ne "vitis_design_wrapper"} {
     return -code error "top is [get_property top [get_filesets sources_1]], expected vitis_design_wrapper"
 }
@@ -189,10 +187,16 @@ if {$BD_ONLY} {
     return
 }
 
+# Re-assert the top immediately before launching synthesis. generate_target /
+# other operations above can trigger auto-top re-evaluation (source_mgmt_mode is
+# All so module references resolve); this guarantees synth_1 elaborates
+# vitis_design_wrapper (with CIPS) rather than the bare eth_gt_phy PHY.
+set_property top vitis_design_wrapper [get_filesets sources_1]
 launch_runs synth_1 -jobs 8 ; wait_on_run synth_1
 if {[get_property PROGRESS [get_runs synth_1]] ne "100%"} {
     return -code error "synth_1 failed - see the run log"
 }
+set_property top vitis_design_wrapper [get_filesets sources_1]
 launch_runs impl_1 -to_step write_device_image -jobs 8 ; wait_on_run impl_1
 if {[get_property PROGRESS [get_runs impl_1]] ne "100%"} {
     return -code error "impl_1 failed - see the run log"
