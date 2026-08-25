@@ -97,10 +97,20 @@ from the real AIE features. See `docs/PROJECT_STATE.md` "Live Demo".
 - **Vivado / Vitis 2025.2** + **PetaLinux 2025.2**
 - Vitis base platform `xilinx_vck190_base_202520_1`
 - (for the live path) 1000BASE-X SFP + Raspberry Pi 4 running `nexmon_csi`
+- Pi CSI firmware/tooling source: **seemoo-lab/nexmon_csi**  
+  https://github.com/seemoo-lab/nexmon_csi
 
 ---
 
 ## Build instructions
+
+### 0. Raspberry Pi CSI source (nexmon_csi)
+
+For the live Ethernet path, set up the Raspberry Pi CSI transmitter using the
+upstream `nexmon_csi` project (this repo consumes those UDP CSI packets on port
+5500; it does not replace the Pi-side firmware patch flow):
+
+- https://github.com/seemoo-lab/nexmon_csi
 
 ### 1. PL design in Vivado
 
