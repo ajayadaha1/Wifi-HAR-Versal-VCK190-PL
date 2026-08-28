@@ -1,0 +1,13 @@
+[Unit]
+Description=Activate nexmon CSI extractor on wlan0 (monitor mode + config)
+After=NetworkManager.service
+Wants=NetworkManager.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/local/bin/csi_start.sh 132/80
+TimeoutStartSec=90
+
+[Install]
+WantedBy=multi-user.target

@@ -71,6 +71,7 @@ from the real AIE features. See `docs/PROJECT_STATE.md` "Live Demo".
 
 | Path | Contents |
 |---|---|
+| `pi/` | Raspberry Pi CSI source — `nexmon_csi` activation + Ethernet forwarder (`csi_forward.py`, `csi_start.sh`, systemd units) that streams CSI out the Pi's `eth0` to the VCK190 |
 | `hw/scripts/` | Vivado **IP-Integrator TCL** to rebuild the PL designs — `project_top.tcl` (top) + `inline_design.tcl` (inline Ethernet→parser→AIE→DMA BD) |
 | `hw/constraints/`, `hw/hdl/` | XDC constraints and HDL wrappers (`eth_gt_phy.v`, `axis_sink.v`) |
 | `hw/ip/` | extra IP sources (GT wizard `csi_eth_gtwiz.xci` for the Ethernet front-end) |
@@ -111,6 +112,11 @@ upstream `nexmon_csi` project (this repo consumes those UDP CSI packets on port
 5500; it does not replace the Pi-side firmware patch flow):
 
 - https://github.com/seemoo-lab/nexmon_csi
+
+Once `nexmon_csi` is patched in, [`pi/`](pi/) has the ready-made activation +
+Ethernet-forwarder services that stream the CSI out the Pi's `eth0` to the
+VCK190's SFP (`csi_start.sh`, `csi_forward.py`, and the two systemd units) — see
+[`pi/README.md`](pi/README.md).
 
 ### 1. PL design in Vivado
 
