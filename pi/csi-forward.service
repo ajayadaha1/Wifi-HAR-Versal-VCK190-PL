@@ -1,0 +1,18 @@
+[Unit]
+Description=Forward nexmon CSI UDP from wlan0 to eth0 (to Versal VCK190)
+After=csi-activate.service
+Requires=csi-activate.service
+
+[Service]
+Type=simple
+# Override any of these to retarget the stream (e.g. CSI_DST_IP=<versal-ip> for unicast)
+Environment=CSI_SRC_IF=wlan0
+Environment=CSI_DST_IF=eth0
+Environment=CSI_DST_IP=255.255.255.255
+Environment=CSI_PORT=5500
+ExecStart=/usr/bin/python3 /usr/local/bin/csi_forward.py
+Restart=always
+RestartSec=2
+
+[Install]
+WantedBy=multi-user.target
