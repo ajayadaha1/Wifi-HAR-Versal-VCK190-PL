@@ -1491,3 +1491,182 @@ PCS link + parser RX counters), (2) flash to a board with the Pi (nexmon_csi) on
 SFP0, (3) validate live CSI -> parser -> AIE -> results. NOTE: the board farm hold
 was lost mid-session (JTAG cable fault released chanterelle8); re-acquire via
 interactive systest for the live bring-up.
+
+---
+
+## 25. 2026-08-29 - D2b LIVE on silicon: link UP + live CSI ingest PROVEN; s2mm_meta panic + host stall isolate the last mile
+
+First on-silicon bring-up of the full D2b Ethernet live path with a REAL Raspberry
+Pi (nexmon_csi) on SFP0, executed remotely over the VCK190 serial console + SSH.
+Image = the §24 co-gen build (`inline_cogen_d2eth_ila.xclbin`), booted from SD on a
+user-supplied board with the Pi cabled to an SFP cage.
+
+**TL;DR:** the entire *physical live-ingest* path is now validated on silicon
+(Pi -> SFP0 -> GTY -> PCS -> AXI-Ethernet MAC RX, ~90-145 fps, `LINK=UP`). The live
+*AIE feature-extraction* is blocked by two concrete, now-isolated issues: (A) a
+**missing `no-map` reserved-memory carve-out** for the PL DMA landing zone (arming
+`s2mm_meta` panicked the kernel), and (B) the **golden one-shot `host` app cannot
+drain a free-running live stream**. Both are rebuild/host-code fixes, not RTL.
+
+### 25.1 Environment / topology (this session)
+- Board: `xilinx-vck190-20252`, PetaLinux 2025.2, kernel `6.12.40-xilinx-g31626ef92ff1`,
+  Versal vck190 revA. Booted from **SD** (BOOT.BIN + image from the 2025.2 cluster).
+  SD chosen over JTAG because the only local AMD tools are **Vivado 2023.2** (xsdb /
+  hw_server / bootgen present; **no Vitis, nothing 2024/2025**). JTAG `device program`
+  of a 2025.2 PDI with 2023.2 tools is the version-risky step; SD sidesteps it.
+- Serial console: FT4232H (`0403:6011`). Interface map: **ttyUSB0 = JTAG (MPSSE),
+  ttyUSB1 = Versal PS console (iface 01) @115200**, ttyUSB2/3 unused. The FT4232H is
+  USB/standby-powered so it **enumerates even when the Versal main rails are off** ->
+  "ttyUSBx present" does NOT prove the board is powered. Definitive "board not
+  booting" signature: all UARTs silent AND `xsdb -> connect; targets` empty (2023.2
+  hw_server enumerates the JTAG chain fine; empty = dark SoC). Every power-cycle
+  re-enumerates the FTDI -> ttyUSBx re-number and any `screen` drops.
+- Pi (bcm43455c0), `csi-forward.service` streaming CSI as UDP:5500 broadcast out
+  `eth0` -> copper SFP -> VCK190. Verified ~470 fps leaving the Pi before the move.
+- Laptop<->board mgmt: added my ed25519 pubkey to board `/root/.ssh/authorized_keys`;
+  board PS mgmt IP `192.168.1.245` (`macb ff0d0000.ethernet` = `end1`). **This PS
+  link FLAPS Up/Down ~1 s** -> SSH intermittently `No route to host`. The dashboard
+  (port **8080**, plain **http**) needs this link stable.
+- Filesystem: `/tmp` is tmpfs (wiped on reboot); **`/home/root` is persistent** (SD
+  ext4 rootfs) - stage tools there.
+
+### 25.2 Boot autorun (must be stopped for any live work)
+Boot auto-runs **`/home/root/aie-d2eth-ila/d2eth-ila-autorun.sh`** (boot-started
+loop; PID varies - seen 658, 670). It loads `zocl`, waits `/dev/dri`, runs
+`mux_set.py 1` (csi_mux **S01 = mm2s/DDR golden**), then loops
+`timeout -s KILL 45 ./host inline_cogen_d2eth_ila.xclbin input.txt golden.txt`,
+printing golden PASS each iter:
+```
+golden:  mean=-0.002065 var=0.302189 power=0.302193
+max_abs_err=5.960e-08 -> PASS      (host_rc=0)   <- golden mm2s->AIE bit-accurate on silicon
+```
+It does **not** mac-init or start the parser (the golden path never touches the
+Ethernet MAC). `Ctrl-C` does NOT stop it (boot process, not a shell job). Stop with:
+`pkill -9 -f d2eth-ila-autorun.sh` (stays dead; not respawned).
+
+### 25.3 Tooling built this session: `sw/pl_mac.py`
+`csi_ctl` is not compiled on the rootfs, so I wrote **`sw/pl_mac.py`** (stdlib
+`mmap`/`/dev/mem`; mirrors the `sw/csi_ctl.c` register map). Subcommands:
+`init [noan] | status | rxwatch [s] | start | parseron | parseroff | check [noan]`.
+- `check [noan]` = mac-init + status + rxwatch (the link-up test).
+- `parseron` = start `csi_udp_parser` ONLY (`ap_ctrl=0x81`), `s2mm_meta` NOT armed -> **safe** (no DDR DMA).
+- `start` = parser + `s2mm_meta` free-running -> **DANGEROUS on this image (see 25.5).**
+Register map (offsets from `sw/csi_ctl.c`, PL_BASE `0xA4000000`):
+`MAC (AXI-Ethernet) @0xA4080000`: RCW1 `0x404` (RX-en `0x10000000`), TC `0x408`
+(TX `0x10000000`), EMMC `0x410` (1G=`0x80000000`), MDIO_MC `0x500` (en `0x40`|div 24),
+MDIO_MCR `0x504` / MWD `0x508` / MRD `0x50C`, FMI `0x708` (promisc `0x80000000`);
+RX stats RXBL `0x200` (bytes, 64-bit LSW-first). PCS via MDIO PHYADDR=**2**, BMCR
+`0x00`, BMSR `0x01` (link=`0x0004`, latch-low so read twice; ANEGDONE `0x0020`).
+`parser @0xA4020000`: UDP_PORT `0x10` (=5500), AP_CTRL `0x00` (start|auto=`0x81`).
+`csi_mux (axis_switch) @0xA4060000`: MI0 route `0x40` (**0=parser/live, 1=mm2s/DDR**),
+commit `0x00`<-`0x2`. `s2mm_meta @0xA4030000`, `s2mm @0xA4010000`, `mm2s @0xA4000000`.
+Transfer: scp when the mgmt link was up; else base64-over-serial (works for ~5.5 KB
+files / 7.3 KB b64; a larger ~8 KB b64 **jammed the canonical tty input line** - use
+scp or chunk it for bigger files). Small pokes go fine as `python3 -c '...'` inline.
+
+### 25.4 ✅ SFP link brought UP - the two-part fix
+1. First cage tried: `pl_mac.py check` (autoneg ON) -> `PCS LINK=DOWN`, autoneg
+   not-done, `RXWATCH d_bytes=0`. Forced 1G (`check noan`, AN OFF) -> STILL DOWN,
+   `d_bytes=0`. Both AN-on and AN-off down => the GT sees **no link partner** =>
+   **wrong SFP cage**.
+2. The design GT is on **SFP0 = bank 105, GTY channel 2** (`hw/constraints/sfp0.xdc`:
+   rx K46/K47, tx H41/H42, MGT refclk 156.25 MHz L39/L40). The VCK190 has TWO SFP
+   cages; the Pi MUST be in **SFP0**. User moved the cable.
+3. After the move, autoneg ON -> `LINK=DOWN` but **`RXWATCH d_bytes=8818`** (frames
+   trickling, ~8/3 s) + autoneg not-done => **1000BASE-X clause-37 autoneg not
+   completing** (a copper/SGMII SFP vs a fiber-AN PCS).
+4. **Forced 1G, autoneg OFF -> `PCS BMCR=0x0140 BMSR=0x01cc LINK=UP`**,
+   `RXWATCH d_bytes=388416` (~358 frames). Repeated: 472192 B/3 s (~436 fr),
+   298112 B/3 s (~275 fr) => **~90-145 fps of live CSI at the MAC RX**.
+
+**=> The link fix is: cable in SFP0 + force 1G (autoneg OFF).** This matches
+linux-xlnx `drivers/net/ethernet/xilinx/xilinx_axienet_main.c`: it drives the PCS
+via `phylink_mii_c22_pcs_config` (clause-22 BMCR/BMSR - the same path `pl_mac.py`
+uses) and supports `xlnx,switch-x-sgmii` to flip 1000BASE-X<->SGMII. A copper SFP
+speaks SGMII, so clause-37 *fiber* autoneg never completes; disabling AN lets the
+1.25G SerDes lock. (The RX *absolute* counter carries a stale power-on baseline -
+seen 146M / 63M / 111M - only the **deltas** are meaningful.)
+
+**PROVEN on silicon this session:** Pi nexmon -> forwarder -> eth0 -> **SFP0 ->
+GTY(`eth_gt_phy`) -> PCS(1000BaseX) -> AXI-Ethernet MAC RX**, live CSI @ ~90-145 fps,
+`LINK=UP`; `csi_mux` control-AXI flips 0/1 cleanly (D2a fix re-confirmed on silicon);
+golden mm2s->AIE bit-accurate; `parser` arms (`ap_ctrl=0x81`).
+
+### 25.5 ❌ CRASH: s2mm_meta DMA into unreserved DDR -> kernel SError panic
+After `LINK=UP`, ran `pl_mac.py start` (arms `s2mm_meta` free-running -> writes
+2 words/frame to physical **META_PA=`0x70000000`**) then `inline_reader.py --arm`
+(arms results `s2mm`->`0x70010000`, reads via `/dev/mem`). RESULT:
+```
+SError Interrupt on CPU0, code 0x00000000bf000000 -- SError
+Comm: python3 ...  x8=0x0000000070000000  x6=0x0000000070000000
+Kernel panic - not syncing: Asynchronous SError Interrupt
+```
+**Root cause (definitive):** `cat /proc/iomem` -> `00000000-7fffffff : System RAM`
+=> **`0x70000000` is kernel-owned System RAM, NOT a reserved `no-map` region** on
+this XRT/Vitis D2ETH-ILA image. `s2mm_meta` (a driverless PL AXI-MM master, **no
+IOMMU**) DMA'd LIVE metadata straight into kernel memory -> external abort (SError,
+DECERR/SLVERR-class `0xbf000000`) -> panic. It only fired **now** because the link
+was finally up and live frames existed to DMA (link-down attempts never wrote, never
+crashed). This is exactly the hazard `sw/csi_ctl.c` documents: the `/dev/mem`
+meta/results path (`csi_ctl` / `inline_reader`) targets a carve-out that MUST be a
+reserved-memory node (`work/petalinux/inline_extras.dtsi` on the plain-Vivado inline
+design); **the XRT co-gen image has no such node**. Reserved regions present on this
+image (from `/proc/iomem`, none a known-safe PL landing zone):
+`019b0000-01e2ffff`, `58e00000-68dfffff`(256M), `68edf000-68ef1fff`,
+`68ef5000-77e8ffff`, **`7c000000-7fffffff`(64M, top-of-DRAM -> almost certainly
+TF-A/OP-TEE secure -> DMA there would SError too)**. Recovery = power-cycle.
+
+### 25.6 ❌ STALL: golden one-shot `host` vs a free-running live stream
+After reboot + `mac-init noan` + `mux_set.py 0` (live) + `parseron` (parser ONLY,
+`s2mm_meta` unarmed -> safe), with `LINK=UP` and frames arriving, `./host
+inline_cogen_d2eth_ila.xclbin input.txt golden.txt` **STALLS** (30 s timeout,
+`rc=137`, no result).
+**Root cause:** `aie/host/host.cpp` is the GOLDEN one-shot model - `mm2s` feeds
+exactly `BLOCK=256` samples, `graph.run(1)`, `s2mm` drains `NOUT=3` words. With
+`csi_mux=0` the AIE is fed by the **free-running parser** (not `mm2s`), so the
+graph-iteration <-> s2mm-drain handshake never lines up and `s2mm.wait()` hangs.
+Also, with `s2mm_meta` unarmed the parser's `meta_out` has no drain and can
+backpressure/stall the parser once its AXIS FIFO fills. => the live path needs a
+**streaming drain**, not the one-shot host.
+
+### 25.7 => THE LAST MILE (for the rebuild agent) - two required fixes
+1. **DT reserved-memory carve-out (THE BLOCKER - causes the 25.5 panic).** Add a
+   `no-map` `reserved-memory` node covering the PL DMA landing zone to the PetaLinux
+   device tree and **rebuild**, e.g.:
+   ```dts
+   reserved-memory {
+       #address-cells = <2>; #size-cells = <2>; ranges;
+       csi_dma@70000000 { no-map; reg = <0x0 0x70000000 0x0 0x00100000>; };  // 1 MB
+   };
+   ```
+   (matches `META_PA 0x70000000` + `RESULTS_PA 0x70010000` in `sw/csi_ctl.c` /
+   `live/inline_reader.py` / `work/petalinux/inline_extras.dtsi`.) Without it, ANY
+   `s2mm_meta`/results DMA to `0x70000000` panics the kernel. Alternative: relocate
+   the movers' target PA into an existing reserved region - but verify it is NOT
+   TF-A/secure first (the `7c000000` region likely is).
+2. **Streaming drain (not the golden host).** For live, either (a) free-run the AIE
+   and continuously drain `s2mm` (the `aie/host/host_3br.cpp --stream` loop is the
+   closest existing pattern: loop { sync s2mm bo FROM device; read }), reading
+   metadata from the now-reserved `s2mm_meta` region via
+   `live/inline_reader.py --source inline`; or (b) a tiny `/dev/mem` streaming reader,
+   safe only after fix (1). The golden `./host ... input.txt golden.txt` will NOT
+   work on the live mux.
+
+Operational follow-ups: bake **force-1G / AN-off** PCS bring-up into the live
+autorun (cable in **SFP0**); fix the **PS mgmt Ethernet flapping** (`macb end1` /
+`192.168.1.245`) for stable SSH + the port-8080 dashboard.
+
+### 25.8 Live bring-up runbook (verified steps; last two need the 25.7 rebuild)
+```bash
+# on the board (serial console, or SSH when the mgmt link is up):
+pkill -9 -f d2eth-ila-autorun.sh                      # stop the golden autorun loop
+python3 /home/root/pl_mac.py check noan               # mac-init forced-1G + link/RX
+#   expect: PCS ... LINK=UP  and  RXWATCH ... d_bytes>0  (LIVE CSI ARRIVING)
+cd /home/root/aie-d2eth-ila && python3 mux_set.py 0   # csi_mux -> parser/live
+python3 /home/root/pl_mac.py parseron                 # start parser (safe; no s2mm_meta)
+# --- after the 25.7 DT carve-out rebuild only: ---
+#   a streaming s2mm drain (host_3br --stream style) + inline_reader.py --source inline
+#   live_dashboard.py --source inline           # http://<board-ip>:8080
+```
+`sw/pl_mac.py` is committed for reuse. Do NOT run `pl_mac.py start` or
+`inline_reader.py --arm` until (1) is done - they DMA into `0x70000000` and panic.
