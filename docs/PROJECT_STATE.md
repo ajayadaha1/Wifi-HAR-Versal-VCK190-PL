@@ -1726,3 +1726,74 @@ rootfs FIT), `system.dtb` (=resv), `boot.scr`, and `live-tools/` (pl_mac.py,
 inline_reader.py, live_dashboard.py, d2eth_live.sh, README_LIVE.md). On the board:
 `grep 7000 /proc/iomem` to confirm the carve-out, then `sh d2eth_live.sh` for the
 live drain (cable in SFP0, force-1G). Full live Pi ingest is the user's local test.
+
+---
+
+## 27. 2026-08-30 - v01.1 on silicon: carve-out is boot-clean but the live drain STILL Async-SErrors on 0x70000000 (CORRECTS §26 root cause)
+
+Ran the §26 **v01.1** SD image on the user's board with the live Pi on SFP0,
+confirmed the carve-out, then ran the live drain (`sh d2eth_live.sh`). **The board
+kernel-panicked again with the SAME Async SError as §25.5 - even though the
+reserved-memory node is confirmed active.** => **§26's carve-out fixed the BOOT but
+NOT the drain.** The blocker is deeper than the Linux memory map.
+
+### Confirmed GOOD on v01.1
+- Boots clean. `/proc/device-tree/reserved-memory/csi-meta@70000000` node PRESENT.
+  `/proc/iomem` shows `0x70000000` inside a **`reserved`** region
+  (`68ef5000-77e8ffff`), NOT `System RAM` (the §25 old image had
+  `00000000-7fffffff : System RAM`). So the DT fix took.
+  - Gotchas: `dmesg | grep "reserved mem"` was **EMPTY** (ring buffer had wrapped by
+    the time we checked - trust the `/proc/device-tree` node, not dmesg). And
+    `grep 7000 /proc/iomem` does NOT print `csi-meta` (the region is unnamed there),
+    so `d2eth_live.sh`'s auto-check fails -> needs `FORCE=1` (we verified the node
+    independently first).
+- Link fix reproduced: SFP0 + `pl_mac.py check noan` -> `LINK=UP`, RX bytes climbing.
+- SSH/mgmt: the reflash wiped `/root/.ssh` and DHCP moved the mgmt IP to
+  **192.168.1.227** (was .245). `end1` FLAPS Up/Down (SSH intermittently
+  "No route to host"); re-added the laptop pubkey over serial.
+
+### The crash (verbatim, 2nd occurrence, WITH the carve-out present)
+```
+SError Interrupt on CPU0, code 0x00000000bf000000 -- SError
+Comm: python3  PID 1374 ...  x8=0x0000000070000000  x6=0x0000000070000000
+Kernel panic - not syncing: Asynchronous SError Interrupt
+  do_serror -> __el0_error_handler_common -> el0t_64_error -> el0t_64_error
+```
+Byte-identical failure mode to §25.5 (old image, 0x70000000 = System RAM). So the
+crash is **INDEPENDENT of whether 0x70000000 is System RAM or reserved.**
+
+### Refined root cause (the correction to §26)
+It is an **Asynchronous SError** (`el0t_64_error`), not a synchronous data abort.
+An async external abort tied to `0x70000000` means a **bus/interconnect transaction
+to that physical address is being REJECTED** (SLVERR/DECERR surfaced asynchronously)
+- NOT a Linux memory-map violation. The reserved-memory node changes Linux's *view*
+of that RAM (which correctly fixed boot) but does nothing about whether the
+**interconnect permits accesses to DDR `0x70000000`** for the offending master /
+memory attribute. Candidates for the rebuild agent:
+1. **Versal memory protection (XMPU/XPPU) / NoC firewall** blocks DDR `0x70000000`
+   for the PL movers' AXI master (SMID) and/or the APU's Device-attribute access.
+   The golden path works because XRT allocates its buffers in a **different,
+   NoC-validated DDR region** - so `0x70000000` specifically is unreachable/blocked.
+2. The `no-map` region mmap'd via `/dev/mem` is **Device-nGnRE**; a posted store to
+   it (the python `--arm` write, or the PL `s2mm_meta` DMA write) that the NoC/DDR
+   rejects surfaces as an async SError. (`sw/csi_ctl.c` already warns Device memory
+   forbids unaligned / DC-ZVA -> SIGBUS; this is the async-write variant.)
+
+### => RECOMMENDED FIX (supersedes the fixed-PA /dev/mem drain)
+**Abandon the fixed `0x70000000` `/dev/mem` drain; use XRT-managed buffers, which are
+already PROVEN on this platform** (the golden `mm2s->AIE->s2mm` path DMAs DDR via XRT
+`bo`s with zero SError). Concretely: a streaming host (adapt
+`aie/host/host_3br.cpp --stream`) that (a) sets the `s2mm` (results) AND `s2mm_meta`
+(metadata) target addresses to XRT `bo.address()` device buffers, (b) loops
+`bo.sync(FROM_DEVICE); read()`, while `csi_mux=0` feeds the AIE from the **live
+parser**. No `/dev/mem`, no fixed PA, no reserved-memory node needed for the data
+path. IF the fixed-PA path must stay: first prove a plain PL-master write to
+`0x70000000` does NOT SError (audit the XMPU/NoC firewall for that master+region;
+consider a `shared-dma-pool`/`reusable` region mapped **Normal-cacheable** with a
+cache-invalidate before CPU reads) BEFORE arming `s2mm_meta` again.
+
+### State
+Board panicked -> needs a power-cycle. Did NOT retry (two identical crashes on the
+same SError). The `pl_mac.py` link/RX bring-up and `csi_mux` control are unaffected
+and still good; **only the DDR drain path is blocked.** Live *ingest*
+(Pi -> SFP0 -> PCS -> MAC RX, ~90-145 fps, LINK=UP) remains PROVEN on silicon.
