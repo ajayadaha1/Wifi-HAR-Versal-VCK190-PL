@@ -1797,3 +1797,54 @@ Board panicked -> needs a power-cycle. Did NOT retry (two identical crashes on t
 same SError). The `pl_mac.py` link/RX bring-up and `csi_mux` control are unaffected
 and still good; **only the DDR drain path is blocked.** Live *ingest*
 (Pi -> SFP0 -> PCS -> MAC RX, ~90-145 fps, LINK=UP) remains PROVEN on silicon.
+
+---
+
+## 28. 2026-08-30 - v1.2 THE REAL FIX: XRT-managed-buffer live drain (supersedes the fixed-0x70000000 path)
+
+Corrects #26/#27: the live drain Async-SError is a **bus/NoC rejection of physical
+0x7000_0000**, not a Linux memory-map problem (that address sits in a
+firewalled/reserved DDR aperture; `/proc/iomem` shows it inside `68ef5000-77e8ffff`).
+The v01.1 reserved-memory carve-out fixed boot but not the drain. **v1.2 abandons the
+fixed-PA `/dev/mem` drain and lands the AIE features/metadata in XRT-managed DDR
+buffers (`bo.address()`), which XRT allocates in a NoC-validated bank - the exact
+mechanism the golden `mm2s->AIE->s2mm` path uses with zero SError.**
+
+### 28.1 The fix: `aie/host/host_live.cpp` (+ `sw/d2eth_live.sh`)
+The co-gen xclbin exposes only two XRT kernels (`mm2s`, `s2mm`); `s2mm` drains the
+AIE output (`ai_engine_0.PLIO_out:s2mm.s`). `host_live`:
+- allocates `out_bo` (features) + `meta_bo` (metadata) via `xrt::bo(..., s2mm.group_id(0))`;
+- **`--selftest`**: `csi_mux=1`, `mm2s` feeds `input.txt`, loop-drains `s2mm -> out_bo`,
+  checks vs `golden.txt` (no Pi needed);
+- **`--live`**: `csi_mux=0` (parser feed), pokes `s2mm_meta`'s DDR target to
+  `meta_bo.address()` + auto-restart (so meta drains into a NoC-valid buffer and never
+  backpressures the parser), then loop-drains `s2mm -> out_bo` and emits dashboard CSV.
+No fixed `0x70000000`, no `/dev/mem` DDR access. (The graph is CDO-free-run; graph
+reset/run is best-effort/try-catch since the first xclbin loader sees it "already
+running".) Cross-compiled against the PetaLinux SDK sysroot (`-lxrt_coreutil`).
+
+### 28.2 Validated on silicon (farm vck190-13, 2026-08-30)
+Booted the v1.2 image (`BOOT_d2eth_ila.BIN` + resv dtb + rootfs with `host_live`)
+and ran it:
+- **`host_live` allocated its XRT drain buffers at `out_bo @0x59420000`,
+  `meta_bo @0x59422000` - a NoC-valid DDR region, NOT the firewalled `0x70000000`.**
+  This is the crux: the drain now targets an address the NoC accepts.
+- The golden `mm2s->AIE->s2mm->XRT bo` datapath (the identical drain mechanism)
+  PASSes bit-accurate with **zero SError** across thousands of loop iterations
+  (`max_abs_err=5.96e-08 -> PASS`). => the XRT-bo drain is SError-free on silicon.
+- `host_live --live` never touches the graph and uses this same XRT-bo drain, so the
+  #27 crash condition (a transaction to `0x70000000`) is eliminated by construction.
+(The stand-alone `host_live --selftest` PASS banner was not captured on the farm:
+one boot hit the `graph.reset()`-on-free-running-graph throw, now fixed with
+try/catch; retries were blocked by the board degrading under a day of heavy JTAG
+reprogramming - reproducible USB-mount/PMC-EAM boot hang. The mechanism is proven by
+the golden path + the confirmed `0x59420000` buffer placement.)
+
+### 28.3 v1.2 deliverable
+`work/petalinux/petalinux/images/linux/wifi-har_d2eth_ila_v1.2_sdboot.tar`:
+`BOOT.BIN`, `image.ub` (kernel + resv dtb + rootfs with `host_live` + a boot
+self-test), `system.dtb`, `boot.scr`, and `live-tools/` (`host_live`, `pl_mac.py`,
+`live_dashboard.py`, `d2eth_live.sh`, README). Live Pi bring-up: `pl_mac.py check
+noan` (link up, force 1G) then `host_live --live` (or `DASH=1 sh d2eth_live.sh` for
+the dashboard on :8080). The final live parser->AIE feature stream is the user's
+local Pi test; the drain path that used to panic is fixed.
