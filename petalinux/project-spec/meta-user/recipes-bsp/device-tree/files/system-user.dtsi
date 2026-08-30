@@ -29,3 +29,25 @@
                 >;
         };
 };
+
+/* PL DMA landing zone (THE live-path blocker fix - PROJECT_STATE.md #25.5/#26).
+ * s2mm_meta and s2mm are driverless PL AXI-MM masters with NO IOMMU. On the live
+ * Ethernet path they DMA CSI metadata/results to physical 0x7000_0000 /
+ * 0x7001_0000. Without this no-map carve-out that address is kernel-owned System
+ * RAM, so the first live write raises an asynchronous SError -> kernel panic.
+ * This 1 MB no-map region removes it from Linux so the movers can write safely.
+ * Matches DEFAULT_META_PA/RESULTS_PA in sw/csi_ctl.c + live/inline_reader.py and
+ * the carve-out in petalinux/scripts/inline_extras.dtsi. Validated on silicon:
+ * kernel logs "OF: reserved mem: 0x70000000..0x700fffff nomap ... csi-meta". */
+/ {
+        reserved-memory {
+                #address-cells = <2>;
+                #size-cells = <2>;
+                ranges;
+
+                csi_meta_reserved: csi-meta@70000000 {
+                        no-map;
+                        reg = <0x0 0x70000000 0x0 0x00100000>;   /* 1 MB */
+                };
+        };
+};

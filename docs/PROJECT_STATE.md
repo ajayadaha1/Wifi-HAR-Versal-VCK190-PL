@@ -1670,3 +1670,59 @@ python3 /home/root/pl_mac.py parseron                 # start parser (safe; no s
 ```
 `sw/pl_mac.py` is committed for reuse. Do NOT run `pl_mac.py start` or
 `inline_reader.py --arm` until (1) is done - they DMA into `0x70000000` and panic.
+
+---
+
+## 26. 2026-08-30 - LAST-MILE FIX: reserved-memory carve-out (blocker) + streaming drain; carve-out VALIDATED on silicon
+
+Fixes the two issues isolated in #25 that blocked live AIE feature extraction on
+the Pi path. Neither is RTL - one is a device-tree add, one is a host-flow change.
+
+### 26.1 Fix 1 (THE BLOCKER, #25.5): no-map reserved-memory carve-out at 0x7000_0000
+Root cause recap: on the D2ETH-ILA image `/proc/iomem` had `00000000-7fffffff :
+System RAM`, so 0x7000_0000 was kernel-owned. `s2mm_meta` (a driverless PL AXI-MM
+master, no IOMMU) DMA'd live metadata there -> asynchronous SError -> kernel panic,
+the instant the SFP link came up and real frames existed to move.
+
+Fix: add a 1 MB `no-map` `reserved-memory` node covering the PL DMA landing zone
+(META_PA 0x7000_0000 + RESULTS_PA 0x7001_0000, per sw/csi_ctl.c /
+live/inline_reader.py) to the kernel device tree, so Linux does not own it and the
+movers can write it safely. Baked permanently into the tracked PetaLinux source:
+`petalinux/project-spec/meta-user/recipes-bsp/device-tree/files/system-user.dtsi`
+(alongside the existing zocl `interrupts-extended` node):
+```dts
+/ { reserved-memory {
+        #address-cells = <2>; #size-cells = <2>; ranges;
+        csi_meta_reserved: csi-meta@70000000 { no-map; reg = <0x0 0x70000000 0x0 0x00100000>; };
+}; };
+```
+
+### 26.2 Fix 2 (#25.6): stream-drain, not the golden one-shot host
+The golden `./host ... input.txt golden.txt` feeds exactly BLOCK=256 samples,
+`graph.run(1)`, drains NOUT=3 words, and `s2mm.wait()`s. On the live mux the AIE is
+fed by the *free-running* parser, so that one-shot handshake never lines up and the
+host hangs. The live path must free-run the movers and poll DDR: `inline_reader.py
+--arm` programs the result `s2mm` with `ap_start|auto_restart` (rewrites 0x7001_0000
+every window) and reads metadata from 0x7000_0000. This drain is now wrapped in
+`sw/d2eth_live.sh` (verify carve-out -> stop golden autorun -> mac-init force-1G ->
+csi_mux=0 -> parser+s2mm_meta on -> inline_reader/dashboard drain).
+
+### 26.3 ✅ VALIDATED on silicon (farm vck190-13 @ chanterelle10, 2026-08-30)
+JTAG-booted the D2ETH-ILA PDI (`BOOT_d2eth_ila.BIN`) with the FIXED dtb
+(`system-default-d1-resv.dtb`) via `work/petalinux/farm_boot_fast.sh` (xsdb 2025.2;
+the 2026.2 daily xsdb segfaulted/stalled - use 2025.2 to match the PDI). The kernel
+boot log now shows the carve-out in effect and boots clean, NO SError/panic:
+```
+[0.000000] OF: reserved mem: 0x0000000070000000..0x00000000700fffff (1024 KiB) nomap non-reusable csi-meta@70000000
+[0.000000]   node   0: [mem 0x0000000070000000-0x00000000700fffff]
+```
+=> 0x7000_0000 is no longer System RAM; the #25.5 panic condition is removed. The
+AIE aperture + zocl IPI infra registered fine on the resv dtb (no regressions).
+
+### 26.4 v01.1 SD-boot image for the user's Pi test
+Packaged `work/petalinux/petalinux/images/linux/wifi-har_d2eth_ila_v01.1_sdboot.tar`:
+`BOOT.BIN` (=BOOT_d2eth_ila.BIN), `image.ub` (kernel + RESV dtb + full eth_ila
+rootfs FIT), `system.dtb` (=resv), `boot.scr`, and `live-tools/` (pl_mac.py,
+inline_reader.py, live_dashboard.py, d2eth_live.sh, README_LIVE.md). On the board:
+`grep 7000 /proc/iomem` to confirm the carve-out, then `sh d2eth_live.sh` for the
+live drain (cable in SFP0, force-1G). Full live Pi ingest is the user's local test.
